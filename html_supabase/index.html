@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Churrasco B10 - Gestão Cloud</title>
+    <!-- Tailwind CSS para Estilo Rápido e Moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        b10: '#ef4444', // Red 500
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Supabase JS Client Oficial -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- SheetJS Excel Library -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans antialiased">
+    
+    <!-- Navbar Header -->
+    <nav class="bg-red-600 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col sm:flex-row items-center justify-between py-4 sm:h-16 gap-3">
+                <div class="flex items-center">
+                    <span class="font-bold text-2xl tracking-wider uppercase text-center">🥩 Churrasco B10</span>
+                </div>
+                <div class="flex flex-wrap justify-center gap-2">
+                    <button onclick="setMode('garcom')" class="bg-red-700 hover:bg-red-800 border border-red-500 sm:border-transparent px-4 py-2 rounded-md text-sm font-medium transition-colors shadow">🧑‍🍳 Garçom</button>
+                    <button onclick="setMode('cozinha')" class="bg-red-700 hover:bg-red-800 border border-red-500 sm:border-transparent px-4 py-2 rounded-md text-sm font-medium transition-colors shadow">🔥 Cozinha</button>
+                    <button onclick="acessarDono()" class="bg-gray-800 hover:bg-gray-900 border border-gray-700 sm:border-transparent px-4 py-2 rounded-md text-sm font-medium transition-colors shadow">📈 Dono</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Alertas -->
+    <div id="alert-container" class="fixed top-20 right-4 z-50"></div>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content">
+        <!-- Renderizado dinamicamente pelo app.js -->
+        <h2 class="text-center text-gray-500 mt-10">Carregando Banco de Dados...</h2>
+    </main>
+
+    <!-- Nossa Lógica Principal JS -->
+    <script src="app.js"></script>
+
+</body>
+</html>
