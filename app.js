@@ -1,3 +1,4 @@
+import './style.css';
 import { createClient } from '@supabase/supabase-js';
 
 // Configurações do Supabase via Variáveis de Ambiente (Vite)
@@ -10,16 +11,27 @@ let currentUser = null;
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
     if (!SUPABASE_URL || !SUPABASE_KEY) {
+        console.error("FATAL: Variáveis de ambiente VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY não estão definidas!");
         document.getElementById('main-content').innerHTML = `
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative text-center">
-                <strong class="font-bold">ERRO DE CONFIGURAÇÃO!</strong>
-                <span class="block sm:inline">Variáveis de ambiente do Supabase não encontradas. Verifique o seu arquivo .env ou as configurações da Vercel.</span>
+            <div class="max-w-xl mx-auto mt-20 bg-red-50 border-2 border-red-200 p-8 rounded-3xl text-red-800 text-center shadow-2xl">
+                <div class="text-6xl mb-4">⚙️</div>
+                <h1 class="text-2xl font-black mb-4 uppercase">Erro de Configuração SaaS</h1>
+                <p class="font-medium mb-6">As chaves de conexão com o Supabase não foram encontradas no ambiente.</p>
+                <div class="bg-white p-4 rounded-xl text-left border border-red-100 mb-6 font-mono text-sm">
+                    Verifique se o arquivo <span class="bg-gray-100 px-1 rounded">.env</span> local existe ou se as variáveis estão configuradas no painel da Vercel.
+                </div>
+                <p class="text-xs text-red-400">Verifique o Console (F12) para detalhes técnicos.</p>
             </div>`;
         return;
     }
 
-    db = createClient(SUPABASE_URL, SUPABASE_KEY);
-    checkUserSession();
+    try {
+        db = createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log("Supabase Client Inicializado com Sucesso.");
+        checkUserSession();
+    } catch (e) {
+        console.error("Erro ao inicializar Supabase:", e);
+    }
 });
 
 // ==========================================
@@ -63,12 +75,16 @@ window.handleLogin = async () => {
     btn.disabled = true;
     btn.innerHTML = "CARREGANDO...";
 
-    const { error } = await db.auth.signInWithPassword({ email, password });
+    console.log("Tentando Login para:", email);
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
 
     if (error) {
-        showAlert("Erro: " + error.message, true);
+        console.error("Erro no SignIn:", error);
+        showAlert("Erro de Acesso: " + (error.message === 'Invalid login credentials' ? 'E-mail ou Senha incorretos' : error.message), true);
         btn.disabled = false;
         btn.innerHTML = "ACESSAR PAINEL";
+    } else {
+        console.log("Login realizado com sucesso!", data);
     }
 }
 
@@ -83,16 +99,22 @@ window.handleSignup = async () => {
     btn.disabled = true;
     btn.innerHTML = "CRIANDO CONTA...";
 
+    console.log("Tentando Cadastro para:", email);
     const { data, error } = await db.auth.signUp({ email, password });
 
     if (error) {
+        console.error("Erro no SignUp:", error);
         showAlert("Erro no Cadastro: " + error.message, true);
         btn.disabled = false;
         btn.innerHTML = "CADASTRAR E ENTRAR";
     } else {
-        showAlert("Conta criada com sucesso!");
-        // Inicializa as configurações para o novo usuário
-        await db.from('configuracoes').insert({ user_id: data.user.id });
+        console.log("Usuário cadastrado com sucesso!", data);
+        if (data.session) {
+            showAlert("Conta criada com sucesso!");
+            await db.from('configuracoes').insert({ user_id: data.user.id });
+        } else {
+            showAlert("Verifique seu e-mail para confirmar o cadastro!", false);
+        }
     }
 }
 
