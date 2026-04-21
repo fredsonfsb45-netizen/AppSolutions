@@ -109,12 +109,16 @@ window.handleSignup = async () => {
         btn.innerHTML = "CADASTRAR E ENTRAR";
     } else {
         console.log("Usuário cadastrado com sucesso!", data);
-        if (data.session) {
+        if (data.user && data.session) {
             showAlert("Conta criada com sucesso!");
             await db.from('configuracoes').insert({ user_id: data.user.id });
+        } else if (data.user) {
+            showAlert("Conta pré-criada! Verifique seu e-mail para confirmar o acesso.", false);
         } else {
-            showAlert("Verifique seu e-mail para confirmar o cadastro!", false);
+            showAlert("Erro inesperado no cadastro.", true);
         }
+        btn.disabled = false;
+        btn.innerHTML = "CADASTRAR E ENTRAR";
     }
 }
 
@@ -164,7 +168,7 @@ function showAlert(message, isError=false) {
     }, 4000);
 }
 
-async function setMode(mode) {
+window.setMode = async (mode) => {
     const content = document.getElementById('main-content');
     content.innerHTML = `
         <div class="flex flex-col items-center justify-center mt-20 space-y-4">
