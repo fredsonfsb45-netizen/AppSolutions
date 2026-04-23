@@ -245,6 +245,9 @@ function showAlert(message, isError=false) {
 }
 
 window.setMode = async (mode) => {
+    // Bloqueio de segurança: Se não tiver assinatura e não for Admin, não entra.
+    if (!checkSubscription() && currentUser.email !== 'fredsonfsb45@gmail.com') return;
+
     const content = document.getElementById('main-content');
     content.innerHTML = `
         <div class="flex flex-col items-center justify-center mt-20 space-y-4">
