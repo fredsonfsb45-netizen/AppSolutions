@@ -89,11 +89,12 @@ window.handleLogin = async () => {
 }
 
 window.handleSignup = async () => {
+    const nome = document.getElementById('reg_nome').value;
     const email = document.getElementById('reg_email').value;
     const password = document.getElementById('reg_password').value;
     const btn = document.getElementById('btn-signup');
 
-    if (!email || !password) return showAlert("Preencha todos os campos", true);
+    if (!nome || !email || !password) return showAlert("Preencha todos os campos", true);
     if (password.length < 6) return showAlert("Senha deve ter ao menos 6 caracteres", true);
 
     btn.disabled = true;
@@ -111,7 +112,10 @@ window.handleSignup = async () => {
         console.log("Usuário cadastrado com sucesso!", data);
         if (data.user && data.session) {
             showAlert("Conta criada com sucesso!");
-            await db.from('configuracoes').insert({ user_id: data.user.id });
+            await db.from('configuracoes').insert({ 
+                user_id: data.user.id,
+                nome_estabelecimento: nome 
+            });
         } else if (data.user) {
             showAlert("Conta pré-criada! Verifique seu e-mail para confirmar o acesso.", false);
         } else {
@@ -131,11 +135,83 @@ function showAuth() {
     document.getElementById('app-wrapper').classList.add('hidden');
 }
 
-function showApp() {
+let userConfig = null;
+
+async function showApp() {
+    // Busca configurações completas (SaaS)
+    const { data: cfg, error } = await db.from('configuracoes').select('*').eq('user_id', currentUser.id).single();
+    userConfig = cfg;
+
+    if (error && error.code !== 'PGRST116') {
+        console.error("Erro ao carregar SaaS Config:", error);
+    }
+
+    // Se não existir config (usuário novo), cria o trial de 7 dias
+    if (!userConfig) {
+        const { data: newCfg } = await db.from('configuracoes').insert({ 
+            user_id: currentUser.id,
+            nome_estabelecimento: 'Meu Novo Restaurante'
+        }).select().single();
+        userConfig = newCfg;
+    }
+
     document.getElementById('auth-container').classList.add('hidden');
     document.getElementById('app-wrapper').classList.remove('hidden');
     document.getElementById('user-badge').innerText = currentUser.email;
+    
+    // Atualiza nome da marca personalizada
+    document.getElementById('app-brand-name').innerText = userConfig.nome_estabelecimento || 'CHURRASCO B10';
+
+    // Habilita Painel Master apenas para o Fredson
+    if (currentUser.email === 'fredsonfsb45@gmail.com') {
+        document.getElementById('nav-master').classList.remove('hidden');
+    }
+
+    // Checagem de Assinatura
+    if (!checkSubscription()) return;
+
     setMode('garcom');
+}
+
+function checkSubscription() {
+    const agora = new Date();
+    const vencimento = new Date(userConfig.data_vencimento);
+    const diffDias = Math.ceil((vencimento - agora) / (1000 * 60 * 60 * 24));
+
+    // Bloqueio Total
+    if (diffDias <= 0) {
+        showLockedScreen();
+        return false;
+    }
+
+    // Aviso de Vencimento Próximo (3 dias)
+    if (diffDias <= 3) {
+        showAlert(`Sua assinatura vence em ${diffDias} dias! Regularize para não perder o acesso.`, true);
+    }
+
+    return true;
+}
+
+function showLockedScreen() {
+    const content = document.getElementById('main-content');
+    content.innerHTML = `
+        <div class="max-w-2xl mx-auto mt-10 bg-white p-10 rounded-3xl shadow-2xl border-t-8 border-red-600 text-center animate-fade-in">
+            <div class="text-7xl mb-6">🔒</div>
+            <h1 class="text-3xl font-black text-gray-800 mb-4 uppercase tracking-tighter">Acesso Suspenso</h1>
+            <p class="text-gray-500 mb-8 font-medium">Sua assinatura ou período de teste expirou. Para continuar utilizando a plataforma e acessar seus dados, realize o pagamento da mensalidade.</p>
+            
+            <div class="bg-red-50 p-6 rounded-2xl mb-8 border border-red-100">
+                <p class="text-red-700 font-bold">Vencimento: ${new Date(userConfig.data_vencimento).toLocaleDateString()}</p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://mpago.la/12q1ThP" target="_blank" class="bg-red-600 text-white font-black py-4 px-10 rounded-xl hover:bg-red-700 shadow-xl transition-all uppercase tracking-widest text-sm">Pagar Mensalidade (Mercado Pago)</a>
+                <button onclick="handleLogout()" class="text-gray-400 font-bold hover:text-gray-600">Sair da Conta</button>
+            </div>
+            
+            <p class="mt-10 text-[10px] text-gray-300 font-bold uppercase tracking-widest">Suporte Técnico: AppSolutions Tecnologia</p>
+        </div>
+    `;
 }
 
 // ==========================================
@@ -581,31 +657,19 @@ async function renderDono(container) {
             </div>
         </div>
         
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-12">
-            <!-- FINANCEIRO CARDS -->
-            <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-white rounded-2xl shadow-xl p-6 border-t-4 border-gray-100 transform hover:scale-[1.02] transition-all">
-                    <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Faturamento Bruto</div>
-                    <div class="text-3xl font-black text-gray-800 leading-none">R$ ${totalReceitas.toFixed(2)}</div>
-                </div>
-                <div class="bg-white rounded-2xl shadow-xl p-6 border-t-4 border-gray-100 transform hover:scale-[1.02] transition-all">
-                    <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Custo Insumos</div>
-                    <div class="text-3xl font-black text-red-400 leading-none">R$ ${totalDespesas.toFixed(2)}</div>
-                </div>
-                <div class="bg-white rounded-2xl shadow-xl p-6 border-t-4 border-gray-100 transform hover:scale-[1.02] transition-all">
-                    <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Lucro Líquido</div>
-                    <div class="text-3xl font-black ${corLucro} leading-none">R$ ${lucro.toFixed(2)}</div>
-                </div>
-                <div class="bg-blue-50 rounded-2xl shadow-xl p-6 border-2 border-blue-100 transform hover:scale-[1.02] transition-all">
-                    <div class="text-[10px] text-blue-400 font-black uppercase tracking-widest mb-1">Repasse Garçom</div>
-                    <div class="text-3xl font-black text-blue-700 leading-none">R$ ${gorjetas.toFixed(2)}</div>
-                </div>
-            </div>
-            
             <!-- RADAR -->
-            <div class="bg-white rounded-3xl shadow-xl p-6 border-2 border-dashed border-gray-100">
-                <h2 class="text-sm font-black text-gray-400 uppercase tracking-widest mb-4">Ruptura de Estoque</h2>
-                ${alertas}
+            <div class="bg-white rounded-3xl shadow-xl p-6 border-2 border-dashed border-gray-100 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-sm font-black text-gray-400 uppercase tracking-widest mb-4">Ruptura de Estoque</h2>
+                    ${alertas}
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                    <p class="text-[10px] font-black text-gray-300 uppercase mb-2">Assinatura</p>
+                    <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <span class="text-xs font-bold text-gray-500">${new Date(userConfig.data_vencimento).toLocaleDateString()}</span>
+                        <span class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">${userConfig.plano_status}</span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -622,17 +686,18 @@ async function renderDono(container) {
                 <button onclick="lancarDespesa()" class="w-full mt-4 bg-gray-800 text-white font-black py-4 rounded-xl hover:bg-black transition-all shadow-xl active:scale-95 uppercase text-xs tracking-widest">REGISTRAR SAÍDA NO CAIXA</button>
             </div>
 
-            <!-- CONFIGS -->
-            <div class="bg-white rounded-3xl shadow-xl p-8 flex flex-col justify-between border-t-8 border-blue-500">
+            <!-- PERSONALIZAÇÃO -->
+            <div class="bg-white rounded-3xl shadow-xl p-8 flex flex-col justify-between border-t-8 border-indigo-500">
                 <div>
-                  <h2 class="text-2xl font-black mb-1 text-gray-800">Configurações SaaS</h2>
-                  <p class="text-gray-400 text-sm font-medium mb-6">Ajuste regras tributárias e operacionais.</p>
+                  <h2 class="text-2xl font-black mb-1 text-gray-800">Personalização</h2>
+                  <p class="text-gray-400 text-sm font-medium mb-6">Mude o nome do seu estabelecimento na tela.</p>
                 </div>
-                <button onclick="toggleTaxaGarcom(${usaTaxa})" class="w-full font-black py-5 px-6 rounded-2xl shadow-xl transition-all text-center flex items-center justify-center gap-4 ${usaTaxa ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-500 border-2 border-gray-200'}">
-                    TAXA DE SERVIÇO (10%): ${usaTaxa ? 'ATIVADA ✅' : 'DESLIGADA ❌'}
-                </button>
-                <div class="mt-4 p-4 bg-blue-50 rounded-xl text-[10px] text-blue-600 font-bold leading-tight uppercase italic opacity-75">
-                    * Esta taxa é somada ao checkout de todas as comandas novas.
+                <div class="flex gap-2">
+                    <input type="text" id="p_nome_est" value="${userConfig.nome_estabelecimento || ''}" class="flex-1 p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-bold outline-none">
+                    <button onclick="salvarNomeEstabelecimento()" class="bg-indigo-600 text-white font-black px-6 rounded-xl hover:bg-indigo-700 transition-all">SALVAR</button>
+                </div>
+                <div class="mt-4 p-4 bg-indigo-50 rounded-xl text-[10px] text-indigo-600 font-bold leading-tight uppercase italic opacity-75">
+                    * O nome alterado aparecerá imediatamente no topo do sistema.
                 </div>
             </div>
         </div>
@@ -783,6 +848,100 @@ window.toggleTaxaGarcom = async (estadoAtual) => {
         showAlert("Erro de Rede: " + error.message, true);
     } else {
         setMode('dono');
+    }
+}
+
+window.salvarNomeEstabelecimento = async () => {
+    const nome = document.getElementById('p_nome_est').value;
+    if (!nome) return showAlert("Nome não pode ser vazio", true);
+    
+    const { error } = await db.from('configuracoes').update({ nome_estabelecimento: nome }).eq('user_id', currentUser.id);
+    if (!error) {
+        showAlert("Nome atualizado com sucesso!");
+        showApp(); // Recarrega para atualizar Navbar
+    } else {
+        showAlert("Erro ao atualizar nome", true);
+    }
+}
+
+// ==========================================
+// PAINEL MASTER (APPSOLUTIONS)
+// ==========================================
+window.renderMaster = async () => {
+    const content = document.getElementById('main-content');
+    content.innerHTML = '<div class="text-center py-20 font-black animate-pulse">CARREGANDO DADOS DO ECOSSISTEMA...</div>';
+
+    const { data: clientes, error } = await db.from('configuracoes').select('*').order('data_vencimento', { ascending: true });
+
+    if (error) return showAlert("Erro ao carregar Central Master", true);
+
+    const ativos = clientes.filter(c => new Date(c.data_vencimento) > new Date()).length;
+    const vencidos = clientes.length - ativos;
+
+    content.innerHTML = `
+        <div class="mb-10">
+            <h1 class="text-5xl font-black text-gray-900 tracking-tighter italic">CENTRAL MASTER <span class="text-red-600">APPSOLUTIONS</span></h1>
+            <p class="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Monitoramento Global em Tempo Real</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div class="bg-gray-900 text-white p-8 rounded-3xl shadow-xl">
+                <div class="text-xs font-black text-gray-500 uppercase mb-2">Total de Licenças</div>
+                <div class="text-5xl font-black tracking-tighter">${clientes.length}</div>
+            </div>
+            <div class="bg-green-500 text-white p-8 rounded-3xl shadow-xl">
+                <div class="text-xs font-black text-green-200 uppercase mb-2">Clientes em Dia</div>
+                <div class="text-5xl font-black tracking-tighter">${ativos}</div>
+            </div>
+            <div class="bg-red-500 text-white p-8 rounded-3xl shadow-xl">
+                <div class="text-xs font-black text-red-200 uppercase mb-2">Inadimplentes / Vencidos</div>
+                <div class="text-5xl font-black tracking-tighter">${vencidos}</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50">
+                    <tr class="text-[10px] text-gray-400 font-black uppercase tracking-widest">
+                        <th class="p-6">Estabelecimento</th>
+                        <th class="p-6">Vencimento</th>
+                        <th class="p-6">Status</th>
+                        <th class="p-6 text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    ${clientes.map(c => `
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="p-6">
+                                <div class="font-black text-gray-800">${c.nome_estabelecimento}</div>
+                                <div class="text-[10px] text-gray-400 font-mono">${c.user_id}</div>
+                            </td>
+                            <td class="p-6 font-bold text-gray-600">${new Date(c.data_vencimento).toLocaleDateString()}</td>
+                            <td class="p-6">
+                                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${new Date(c.data_vencimento) > new Date() ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                                    ${new Date(c.data_vencimento) > new Date() ? 'ATIVO' : 'BLOQUEADO'}
+                                </span>
+                            </td>
+                            <td class="p-6 text-center">
+                                <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-4 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-widest">Estender +30 Dias</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+window.estenderAssinatura = async (uid) => {
+    const { data: atual } = await db.from('configuracoes').select('data_vencimento').eq('user_id', uid).single();
+    const novaData = new Date(atual.data_vencimento);
+    novaData.setDate(novaData.getDate() + 30);
+
+    const { error } = await db.from('configuracoes').update({ data_vencimento: novaData, plano_status: 'ativo' }).eq('user_id', uid);
+    if (!error) {
+        showAlert("Assinatura estendida manualmente!");
+        renderMaster();
     }
 }
 
