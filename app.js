@@ -659,7 +659,27 @@ async function renderDono(container) {
                 <button onclick="zerarDia()" class="flex-1 lg:flex-none bg-red-600 text-white font-black py-4 px-6 rounded-xl shadow-lg border-b-4 border-red-800 active:transform active:scale-95 transition-all uppercase text-xs tracking-widest">🗑️ ENCERRAR HOJE</button>
             </div>
         </div>
-        
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-12">
+            <!-- FINANCEIRO CARDS -->
+            <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white rounded-2xl shadow-xl p-6 border-t-4 border-gray-100 transform hover:scale-[1.02] transition-all">
+                    <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Faturamento Bruto</div>
+                    <div class="text-3xl font-black text-gray-800 leading-none">R$ ${totalReceitas.toFixed(2)}</div>
+                </div>
+                <div class="bg-white rounded-2xl shadow-xl p-6 border-t-4 border-gray-100 transform hover:scale-[1.02] transition-all">
+                    <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Custo Insumos</div>
+                    <div class="text-3xl font-black text-red-400 leading-none">R$ ${totalDespesas.toFixed(2)}</div>
+                </div>
+                <div class="bg-white rounded-2xl shadow-xl p-6 border-t-4 border-gray-100 transform hover:scale-[1.02] transition-all">
+                    <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Lucro Líquido</div>
+                    <div class="text-3xl font-black ${corLucro} leading-none">R$ ${lucro.toFixed(2)}</div>
+                </div>
+                <div class="bg-blue-50 rounded-2xl shadow-xl p-6 border-2 border-blue-100 transform hover:scale-[1.02] transition-all">
+                    <div class="text-[10px] text-blue-400 font-black uppercase tracking-widest mb-1">Repasse Garçom</div>
+                    <div class="text-3xl font-black text-blue-700 leading-none">R$ ${gorjetas.toFixed(2)}</div>
+                </div>
+            </div>
+            
             <!-- RADAR -->
             <div class="bg-white rounded-3xl shadow-xl p-6 border-2 border-dashed border-gray-100 flex flex-col justify-between">
                 <div>
