@@ -1483,14 +1483,17 @@ window.importarExcel = async (event) => {
             showAlert(`Importando ${jsonData.length} registros...`, false);
 
             // Mapeia os dados para o formato do Supabase (exemplo para produtos)
-            const rows = jsonData.map(row => ({
-                user_id: currentUser.id,
-                nome: row.nome || row.Nome || "Produto Sem Nome",
-                categoria: row.categoria || row.Categoria || "Geral",
-                preco: parseFloat(row.preco || row.Preco || 0),
-                estoque_atual: parseInt(row.estoque_atual || row.estoque || row.Estoque || row['quant. estoque'] || row.quantidade || 0),
-                estoque_minimo: parseInt(row.estoque_minimo || row.EstoqueMinimo || row.minimo || 5)
-            }));
+            const rows = jsonData.map(row => {
+                const p = {
+                    user_id: currentUser.id,
+                    nome: String(row.nome || row.Nome || "Produto Sem Nome").trim(),
+                    categoria: String(row.categoria || row.Categoria || "Geral").trim(),
+                    preco: parseFloat(row.preco || row.Preco || 0),
+                    estoque_atual: parseInt(row.estoque_atual || row.estoque || row.Estoque || row['quant. estoque'] || row.quantidade || 0),
+                    estoque_minimo: parseInt(row.estoque_minimo || row.EstoqueMinimo || row.minimo || 5)
+                };
+                return p;
+            });
 
             const { error } = await db.from('produtos').upsert(rows, { onConflict: 'nome,user_id' });
 
