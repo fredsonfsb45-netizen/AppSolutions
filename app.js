@@ -333,7 +333,7 @@ async function renderGarcom(container) {
                         <div class="text-xl font-black text-gray-800 leading-tight">${p.comandas.mesa_cliente}</div>
                         <div class="font-bold text-green-600 text-sm mt-1">${p.quantidade}x ${p.produtos.nome}</div>
                     </div>
-                    <button onclick="marcarEntregue(${p.id})" class="bg-green-50 text-green-600 p-3 rounded-full hover:bg-green-600 hover:text-white transition-all shadow-sm" title="Marcar como levado para a mesa">
+                    <button onclick="marcarEntregue(${p.id})" class="bg-green-500 text-white p-3 rounded-xl hover:bg-green-600 transition-all shadow-md active:scale-90" title="Marcar como levado para a mesa">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor font-bold">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                         </svg>
@@ -369,19 +369,29 @@ async function renderGarcom(container) {
                 <button onclick="abrirMesa()" class="w-full bg-red-600 text-white font-black py-4 rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 active:scale-95 transition-all">ABRIR COMANDA</button>
             </div>
             
-            <!-- LANÇAR PEDIDO -->
+            <!-- LANÇAR PEDIDO (NOVO MODELO GRID) -->
             <div class="bg-white p-8 rounded-2xl shadow-xl border-t-8 border-green-500 transform hover:-translate-y-1 transition-all duration-300">
                 <div class="flex items-center gap-3 mb-6">
                     <div class="bg-green-50 p-2 rounded-lg text-green-600 text-2xl">🍟</div>
                     <h2 class="text-2xl font-black text-gray-800">Lançar Item</h2>
                 </div>
-                <select id="g_comanda" class="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-xl mb-4 text-lg font-bold focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none appearance-none">${comandasOptions}</select>
-                <select id="g_produto" class="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-xl mb-4 text-lg font-bold focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none appearance-none">${produtosOptions}</select>
-                <div class="flex items-center gap-4 mb-6">
-                    <span class="font-bold text-gray-400">Qtd:</span>
-                    <input type="number" id="g_qtd" value="1" min="1" class="flex-1 p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-xl font-black text-center focus:outline-none">
+                <select id="g_comanda" class="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-xl mb-4 text-lg font-bold focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none appearance-none font-black text-red-600">${comandasOptions}</select>
+                
+                <div id="categoria-grid" class="grid grid-cols-2 gap-3 mb-4">
+                   <!-- Botões de Categorias serão injetados aqui -->
                 </div>
-                <button onclick="lancarPedido()" class="w-full bg-green-600 text-white font-black py-4 rounded-xl hover:bg-green-700 shadow-lg shadow-green-600/20 active:scale-95 transition-all">ENVIAR PARA COZINHA</button>
+
+                <div id="produtos-selecao" class="hidden animate-fade-in">
+                    <div class="flex items-center justify-between mb-4 border-b pb-2">
+                        <span id="selected-cat-name" class="font-black text-green-600 uppercase italic">CATEGORIA</span>
+                        <button onclick="voltarCategorias()" class="text-xs bg-gray-100 px-3 py-1 rounded font-bold hover:bg-gray-200">← Voltar</button>
+                    </div>
+                    <div id="produtos-grid" class="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2">
+                        <!-- Produtos da categoria serão injetados aqui -->
+                    </div>
+                </div>
+
+                <p id="hint-grid" class="text-center text-gray-400 text-xs font-bold leading-tight mt-4 uppercase tracking-widest italic animate-pulse">Escolha primeiro a Comanda, depois a Categoria do produto.</p>
             </div>
         </div>
         
@@ -416,6 +426,60 @@ async function renderGarcom(container) {
             </div>
         </div>
     `;
+
+    // Injeta Categorias no Grid após o HTML ser renderizado
+    const categorias = [...new Set(produtos.map(p => p.categoria || 'Geral'))];
+    const gridCat = document.getElementById('categoria-grid');
+    if (gridCat) {
+        gridCat.innerHTML = categorias.map(cat => `
+            <button onclick='mostrarProdutosPorCategoria("${cat}")' class="bg-gray-100 p-6 rounded-2xl border-2 border-gray-200 text-center hover:bg-green-50 hover:border-green-300 transition-all shadow-sm active:scale-95">
+                <div class="text-3xl mb-1">${cat.toLowerCase().includes('bebida') ? '🥤' : cat.toLowerCase().includes('carne') ? '🥩' : '🍽️'}</div>
+                <div class="text-[10px] font-black uppercase text-gray-500 truncate">${cat}</div>
+            </button>
+        `).join('');
+    }
+
+    // Salva produtos globalmente para facilitar o filtro sem nova requisição
+    window.currentProdutos = produtos;
+}
+
+window.mostrarProdutosPorCategoria = (cat) => {
+    const cid = document.getElementById('g_comanda').value;
+    if (!cid) return showAlert("Selecione a Comanda primeiro!", true);
+
+    document.getElementById('categoria-grid').classList.add('hidden');
+    document.getElementById('hint-grid').classList.add('hidden');
+    const prodSect = document.getElementById('produtos-selecao');
+    prodSect.classList.remove('hidden');
+    document.getElementById('selected-cat-name').innerText = cat;
+
+    const filtrados = window.currentProdutos.filter(p => (p.categoria || 'Geral') === cat);
+    const gridProd = document.getElementById('produtos-grid');
+    gridProd.innerHTML = filtrados.map(p => `
+        <button onclick="lancarPedidoRapido(${p.id}, '${p.nome}')" class="flex flex-col bg-white border-2 border-gray-100 p-3 rounded-xl hover:border-green-500 shadow-sm transition-all text-left">
+            <span class="font-black text-gray-800 text-sm leading-tight mb-1 text-wrap">${p.nome}</span>
+            <span class="text-[10px] font-bold text-green-600 uppercase leading-none">R$ ${p.preco.toFixed(2)}</span>
+            <span class="text-[8px] font-black text-gray-400 uppercase mt-auto">Estoque: ${p.estoque_atual}</span>
+        </button>
+    `).join('');
+}
+
+window.voltarCategorias = () => {
+    document.getElementById('categoria-grid').classList.remove('hidden');
+    document.getElementById('hint-grid').classList.remove('hidden');
+    document.getElementById('produtos-selecao').classList.add('hidden');
+}
+
+window.lancarPedidoRapido = async (pid, nome) => {
+    const cid = document.getElementById('g_comanda').value;
+    const { error } = await db.rpc('lancar_item_seguro', { p_comanda_id: cid, p_produto_id: pid, p_quantidade: 1 });
+    
+    if (!error) {
+        showAlert(`${nome} enviado! 🔥`);
+        setMode('garcom');
+    } else {
+        showAlert("Erro no estoque!", true);
+    }
 }
 
 window.abrirMesa = async () => {
@@ -686,11 +750,16 @@ async function renderDono(container) {
                     <h2 class="text-sm font-black text-gray-400 uppercase tracking-widest mb-4">Ruptura de Estoque</h2>
                     ${alertas}
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-100">
-                    <p class="text-[10px] font-black text-gray-300 uppercase mb-2">Assinatura</p>
-                    <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
-                        <span class="text-xs font-bold text-gray-500">${new Date(userConfig.data_vencimento).toLocaleDateString()}</span>
-                        <span class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">${userConfig.plano_status}</span>
+                <div class="mt-4 pt-4 border-t border-gray-100 space-y-4">
+                    <button onclick="toggleTaxaGarcom(${usaTaxa})" class="w-full font-black py-3 px-4 rounded-xl shadow-md transition-all text-center flex items-center justify-center gap-2 text-xs ${usaTaxa ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-500 border border-gray-200'}">
+                        TAXA SERVIÇO (10%): ${usaTaxa ? 'ATIVADA ✅' : 'DESLIGADA ❌'}
+                    </button>
+                    <div>
+                        <p class="text-[10px] font-black text-gray-300 uppercase mb-2">Assinatura</p>
+                        <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <span class="text-xs font-bold text-gray-500">${new Date(userConfig.data_vencimento).toLocaleDateString()}</span>
+                            <span class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">${userConfig.plano_status}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -728,9 +797,10 @@ async function renderDono(container) {
         <!-- CARDÁPIO -->
         <div class="bg-white rounded-3xl shadow-xl p-8 border-t-8 border-b10">
             <h2 class="text-3xl font-black mb-8 text-gray-800 tracking-tighter">Management Board <span class="text-red-600">Cardápio</span></h2>
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-10 pb-10 border-b-2 border-dashed border-gray-100">
+            <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-10 pb-10 border-b-2 border-dashed border-gray-100">
                 <input type="text" id="p_nome" placeholder="Produto / Insumo" class="md:col-span-2 p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-bold">
                 <input type="number" id="p_preco" placeholder="Venda R$" step="0.01" class="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-black text-center">
+                <input type="text" id="p_categoria" placeholder="Categoria (Ex: Bebidas)" class="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-bold">
                 <input type="number" id="p_estoque" placeholder="Aporte Inic." class="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-black text-center">
                 <button onclick="cadastrarProduto()" class="bg-red-600 text-white font-black p-4 rounded-xl shadow-lg border-b-4 border-red-800 hover:bg-red-700 uppercase text-xs tracking-widest active:scale-95 transition-all">SALVAR ITEM</button>
             </div>
@@ -777,9 +847,11 @@ window.cadastrarProduto = async () => {
     const preco = parseFloat(document.getElementById('p_preco').value);
     const est = parseInt(document.getElementById('p_estoque').value);
     
+    const cat = document.getElementById('p_categoria').value || 'Geral';
+    
     if (!nome || isNaN(preco)) return showAlert("Nome e Preço são obrigatórios", true);
     
-    const { error } = await db.from('produtos').insert({ nome: nome, preco: preco, estoque_atual: isNaN(est)? 0 : est, user_id: currentUser.id });
+    const { error } = await db.from('produtos').insert({ nome: nome, preco: preco, categoria: cat, estoque_atual: isNaN(est)? 0 : est, user_id: currentUser.id });
     if (error) {
         showAlert("Erro: " + error.message, true);
     } else {
