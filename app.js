@@ -345,6 +345,27 @@ window.setMode = async (mode, targetAba = null) => {
 
 window.acessarDono = () => {
     const content = document.getElementById('main-content');
+    
+    // Se a senha ainda é a padrão b10, obriga a criar uma nova
+    if (userConfig.manager_password === 'b10') {
+        content.innerHTML = `
+            <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl border-t-8 border-indigo-600 mt-10 animate-fade-in">
+                <div class="flex justify-center mb-6">
+                    <div class="bg-indigo-50 p-4 rounded-full text-4xl">🔐</div>
+                </div>
+                <h2 class="text-2xl font-black mb-2 text-center text-gray-800">Defina sua Senha ADM</h2>
+                <p class="text-gray-500 text-center mb-8 text-sm">A senha padrão <b>b10</b> é temporária. Crie uma senha segura para proteger seu financeiro.</p>
+                <input type="password" id="nova_senha_adm" placeholder="Nova Senha..." class="w-full p-4 border-2 border-gray-100 rounded-xl mb-6 text-center text-3xl tracking-[1em] focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-600 transition-all font-mono">
+                <div class="flex gap-4">
+                    <button onclick="setMode('garcom')" class="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-xl transition">Depois</button>
+                    <button onclick="salvarNovaSenhaAdm()" class="flex-1 bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all uppercase text-xs tracking-widest">CRIAR SENHA</button>
+                </div>
+            </div>
+        `;
+        document.getElementById('nova_senha_adm').focus();
+        return;
+    }
+
     content.innerHTML = `
         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl border-t-8 border-gray-800 mt-10 animate-fade-in">
             <div class="flex justify-center mb-6">
@@ -355,7 +376,7 @@ window.acessarDono = () => {
             <input type="password" id="dono_senha" placeholder="Senha ADM..." class="w-full p-4 border-2 border-gray-100 rounded-xl mb-6 text-center text-3xl tracking-[1em] focus:outline-none focus:ring-4 focus:ring-gray-800/10 focus:border-gray-800 transition-all font-mono">
             <div class="flex gap-4">
                 <button onclick="setMode('garcom')" class="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-xl hover:bg-gray-200 transition">Voltar</button>
-                <button onclick="verificarSenhaDono()" class="flex-1 bg-gray-800 text-white font-bold py-4 rounded-xl hover:bg-black shadow-lg shadow-gray-800/20 active:scale-95 transition-all">ENTRAR</button>
+                <button onclick="verificarSenhaDono()" class="flex-1 bg-gray-800 text-white font-bold py-4 rounded-xl hover:bg-black shadow-lg shadow-gray-800/20 active:scale-95 transition-all font-black text-xs uppercase tracking-widest">ENTRAR</button>
             </div>
         </div>
     `;
@@ -376,6 +397,21 @@ window.verificarSenhaDono = async () => {
         setMode('dono', 'vendas');
     } else {
         showAlert('Senha Administrativa Incorreta!', true);
+    }
+}
+
+window.salvarNovaSenhaAdm = async () => {
+    const nova = document.getElementById('nova_senha_adm').value;
+    if (!nova || nova.length < 3) return showAlert("Crie uma senha de ao menos 3 caracteres", true);
+
+    const { error } = await db.from('configuracoes').update({ manager_password: nova }).eq('user_id', currentUser.id);
+    
+    if (!error) {
+        userConfig.manager_password = nova; // Atualiza local
+        showAlert("Senha Administrativa Criada!");
+        setMode('dono', 'vendas');
+    } else {
+        showAlert("Erro ao salvar senha: " + error.message, true);
     }
 }
 
