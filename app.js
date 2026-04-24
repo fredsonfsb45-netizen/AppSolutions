@@ -216,17 +216,19 @@ async function showApp() {
     const isAllowed = checkSubscription();
     if (!isAllowed) return;
 
-    // AVISO DE BOAS-VINDAS (Se for trial e estiver começando)
+    // AVISO DE BOAS-VINDAS E REDIRECIONAMENTO (Primeiro Acesso)
     if (userConfig.plano_status === 'trial') {
         const agora = new Date();
         const vencimento = new Date(userConfig.data_vencimento);
         const diffHoras = (vencimento - agora) / (1000 * 60 * 60);
 
-        // Se o trial foi criado há pouco tempo (menos de 1 hora de uso)
-        if (diffHoras > 167) { // 168h = 7 dias. 167h significa que acabou de criar.
+        // Se o trial foi criado há menos de 1 hora, é o primeiro acesso
+        if (diffHoras > 167.5) { 
              setTimeout(() => {
-                alert("✨ BEM-VINDO À APPSOLUTIONS!\n\nVocê tem 7 dias de teste grátis liberados.\nAproveite para configurar seu cardápio e estoque.\n\nApós este período, a mensalidade será de apenas R$ 29,90.");
-             }, 1000);
+                alert("✨ BEM-VINDO À APPSOLUTIONS!\n\nSeu teste de 7 dias começou!\n\nPASSO OBRIGATÓRIO: Antes de começar os pedidos, você precisa confirmar o NOME DO SEU RESTAURANTE e personalizar suas cores.\n\nClique em OK para ser direcionado agora.");
+                setMode('dono', 'branding'); 
+             }, 800);
+             return; // Interrompe a abertura do Garçom
         }
     }
 
@@ -931,13 +933,19 @@ async function renderDono(container, initialAba = 'vendas') {
     let lucro = totalReceitas - totalDespesas;
     let corLucro = lucro >= 0 ? 'text-green-600' : 'text-red-600';
 
+    // Detecta se é o primeiro acesso (Setup não concluído)
+    const agora = new Date();
+    const vencimento = new Date(userConfig.data_vencimento);
+    const diffHoras = (vencimento - agora) / (1000 * 60 * 60);
+    const isPrimeiroAcesso = (userConfig.plano_status === 'trial' && diffHoras > 167);
+
     container.innerHTML = `
-        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-10 gap-6">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-12 animate-fade-in">
             <div>
-                <h1 class="text-5xl font-black text-gray-800 tracking-tighter">Dashboard <span class="text-red-600 italic">Dono</span></h1>
+                <h1 class="text-5xl font-black text-gray-800 tracking-tighter italic">Painel do <span class="text-red-700">Dono</span></h1>
                 <p class="text-gray-400 font-medium italic">Gestão e Identidade Visual</p>
             </div>
-            <div class="flex flex-wrap gap-2 w-full lg:w-auto">
+            <div class="flex flex-wrap gap-2 w-full lg:w-auto ${isPrimeiroAcesso ? 'opacity-20 pointer-events-none' : ''}">
                 <button onclick="changeDonoAba('vendas')" class="aba-btn ${initialAba === 'vendas' ? 'active bg-white border-2 border-gray-100' : 'bg-gray-100'} flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📊 Financeiro</button>
                 <button onclick="changeDonoAba('estoque')" class="aba-btn ${initialAba === 'estoque' ? 'active bg-white border-2 border-gray-100' : 'bg-gray-100'} flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📦 Estoque</button>
                 <button onclick="changeDonoAba('branding')" class="aba-btn ${initialAba === 'branding' ? 'active bg-white border-2 border-gray-100' : 'bg-indigo-600 text-white'} flex-1 lg:flex-none font-black py-4 px-6 rounded-xl shadow-lg transition-all uppercase text-xs tracking-widest">🎨 Personalizar</button>
@@ -945,6 +953,7 @@ async function renderDono(container, initialAba = 'vendas') {
                 <button onclick="document.getElementById('import-excel').click()" class="flex-1 lg:flex-none bg-green-50 text-green-700 font-black py-4 px-6 rounded-xl hover:bg-green-100 transition-all shadow-sm border border-green-200 uppercase text-xs tracking-widest">📥 Importar</button>
                 <input type="file" id="import-excel" class="hidden" accept=".xlsx, .xls" onchange="importarExcel(event)">
             </div>
+            ${isPrimeiroAcesso ? '<div class="w-full bg-red-100 text-red-600 p-4 rounded-xl text-xs font-black text-center uppercase animate-pulse">⚠️ Complete a personalização abaixo para liberar o menu</div>' : ''}
         </div>
 
         <div id="dono-conteudo">
@@ -1488,7 +1497,8 @@ window.salvarBranding = async () => {
         userConfig.cor_fundo = fundo;
         userConfig.cor_texto = texto;
         aplicarTema(userConfig);
-        showAlert("Identidade Visual atualizada!");
+        showAlert("Identidade Visual atualizada! Menu Liberado. 🚀");
+        setTimeout(() => window.location.reload(), 1500);
     } else {
         showAlert("Erro ao salvar branding", true);
     }
