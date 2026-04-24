@@ -217,19 +217,12 @@ async function showApp() {
     if (!isAllowed) return;
 
     // AVISO DE BOAS-VINDAS E REDIRECIONAMENTO (Primeiro Acesso)
-    if (userConfig.plano_status === 'trial') {
-        const agora = new Date();
-        const vencimento = new Date(userConfig.data_vencimento);
-        const diffHoras = (vencimento - agora) / (1000 * 60 * 60);
-
-        // Se o trial foi criado há menos de 1 hora, é o primeiro acesso
-        if (diffHoras > 167.5) { 
-             setTimeout(() => {
-                alert("✨ BEM-VINDO À APPSOLUTIONS!\n\nSeu teste de 7 dias começou!\n\nPASSO OBRIGATÓRIO: Antes de começar os pedidos, você precisa confirmar o NOME DO SEU RESTAURANTE e personalizar suas cores.\n\nClique em OK para ser direcionado agora.");
-                setMode('dono', 'branding'); 
-             }, 800);
-             return; // Interrompe a abertura do Garçom
-        }
+    if (userConfig.plano_status === 'trial' && !userConfig.setup_concluido) {
+         setTimeout(() => {
+            alert("✨ BEM-VINDO À APPSOLUTIONS!\n\nSeu teste de 7 dias começou!\n\nPASSO OBRIGATÓRIO: Antes de começar os pedidos, você precisa confirmar o NOME DO SEU RESTAURANTE e personalizar suas cores.\n\nClique em OK para ser direcionado agora.");
+            setMode('dono', 'branding'); 
+         }, 800);
+         return; // Interrompe a abertura do Garçom
     }
 
     setMode('garcom');
@@ -934,10 +927,7 @@ async function renderDono(container, initialAba = 'vendas') {
     let corLucro = lucro >= 0 ? 'text-green-600' : 'text-red-600';
 
     // Detecta se é o primeiro acesso (Setup não concluído)
-    const agora = new Date();
-    const vencimento = new Date(userConfig.data_vencimento);
-    const diffHoras = (vencimento - agora) / (1000 * 60 * 60);
-    const isPrimeiroAcesso = (userConfig.plano_status === 'trial' && diffHoras > 167);
+    const isPrimeiroAcesso = (userConfig.plano_status === 'trial' && !userConfig.setup_concluido);
 
     container.innerHTML = `
         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-12 animate-fade-in">
@@ -1487,7 +1477,8 @@ window.salvarBranding = async () => {
         nome_estabelecimento: nome,
         cor_header: header,
         cor_fundo: fundo,
-        cor_texto: texto
+        cor_texto: texto,
+        setup_concluido: true // Marca como concluído para nunca mais pedir
     }).eq('user_id', currentUser.id);
 
     if (!error) {
@@ -1496,6 +1487,7 @@ window.salvarBranding = async () => {
         userConfig.cor_header = header;
         userConfig.cor_fundo = fundo;
         userConfig.cor_texto = texto;
+        userConfig.setup_concluido = true;
         aplicarTema(userConfig);
         showAlert("Identidade Visual atualizada! Menu Liberado. 🚀");
         setTimeout(() => window.location.reload(), 1500);
