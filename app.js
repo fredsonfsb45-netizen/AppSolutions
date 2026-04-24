@@ -1488,8 +1488,8 @@ window.importarExcel = async (event) => {
                 nome: row.nome || row.Nome || "Produto Sem Nome",
                 categoria: row.categoria || row.Categoria || "Geral",
                 preco: parseFloat(row.preco || row.Preco || 0),
-                estoque: parseInt(row.estoque || row.Estoque || 0),
-                estoque_minimo: parseInt(row.estoque_minimo || row.EstoqueMinimo || 5)
+                estoque_atual: parseInt(row.estoque_atual || row.estoque || row.Estoque || row['quant. estoque'] || row.quantidade || 0),
+                estoque_minimo: parseInt(row.estoque_minimo || row.EstoqueMinimo || row.minimo || 5)
             }));
 
             const { error } = await db.from('produtos').upsert(rows, { onConflict: 'nome,user_id' });
