@@ -108,6 +108,7 @@ window.handleSignup = async () => {
             options: {
                 data: {
                     estabelecimento: est,
+                    nome_restaurante: est, // Chave redundante para segurança
                     nome_completo: nome
                 }
             }
