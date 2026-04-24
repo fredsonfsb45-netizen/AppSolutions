@@ -1145,7 +1145,10 @@ window.renderMaster = async () => {
                 <h1 class="text-5xl font-black text-gray-900 tracking-tighter italic">CENTRAL MASTER <span class="text-red-600">APPSOLUTIONS</span></h1>
                 <p class="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Monitoramento Financeiro e de Licenças</p>
             </div>
-            <button onclick="logout()" class="bg-gray-100 text-gray-500 px-6 py-2 rounded-xl font-black text-[10px] uppercase hover:bg-red-50 hover:text-red-600 transition-all">Sair do Sistema 🚪</button>
+            <div class="flex gap-3">
+                <button onclick="zerarDadosSaaS()" class="bg-red-50 text-red-600 px-6 py-2 rounded-xl font-black text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all border border-red-100">🗑️ Zerar Dados Globais</button>
+                <button onclick="logout()" class="bg-gray-100 text-gray-500 px-6 py-2 rounded-xl font-black text-[10px] uppercase hover:bg-red-50 hover:text-red-600 transition-all">Sair do Sistema 🚪</button>
+            </div>
         </div>
 
         <!-- DASHBOARD FINANCEIRO GLOBAL -->
@@ -1247,6 +1250,26 @@ window.excluirParaSempre = async (uid, nome) => {
         renderMaster();
     } else {
         showAlert("Erro ao excluir: " + error.message, true);
+    }
+}
+
+window.zerarDadosSaaS = async () => {
+    if (!confirm("🚨 ATENÇÃO: Você está prestes a ZERAR o faturamento e custos de TODA A PLATAFORMA (Todos os clientes). Deseja continuar?")) return;
+    if (!confirm("Tem certeza absoluta? Essa ação não pode ser desfeita e afetará todos os estabelecimentos.")) return;
+
+    showAlert("Limpando ecossistema...", false);
+
+    // Deleta registros de todas as tabelas financeiras
+    const [ {error: e1}, {error: e2} ] = await Promise.all([
+        db.from('itens_pedido').delete().neq('id', 0), // deleta tudo
+        db.from('despesas').delete().neq('id', 0)
+    ]);
+
+    if (!e1 && !e2) {
+        showAlert("Plataforma Zerada com sucesso!");
+        renderMaster();
+    } else {
+        showAlert("Erro ao zerar dados!", true);
     }
 }
 
