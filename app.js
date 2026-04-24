@@ -245,8 +245,16 @@ function showAlert(message, isError=false) {
 }
 
 window.setMode = async (mode) => {
-    // Bloqueio de segurança: Se não tiver assinatura e não for Admin, não entra.
-    if (!checkSubscription() && currentUser.email !== 'fredsonfsb45@gmail.com') return;
+    const isFredson = currentUser.email === 'fredsonfsb45@gmail.com';
+    
+    // Bloqueio de segurança: Se não tiver assinatura e não for você, não entra.
+    if (!checkSubscription() && !isFredson) return;
+
+    // RESTRICAO ADMIN (FREDSON): Você só vê Master e Config. 
+    // Se tentar entrar em Garçom/Cozinha/Dono, o sistema te joga pro Master.
+    if (isFredson && ['garcom', 'cozinha', 'dono'].includes(mode)) {
+        return setMode('master');
+    }
 
     const content = document.getElementById('main-content');
     content.innerHTML = `
@@ -741,6 +749,7 @@ async function renderCozinha(container) {
     const { data: pendentes, error } = await db.from('itens_pedido').select(`
         id, 
         quantidade, 
+        observacao,
         produtos!inner(nome), 
         comandas!inner(id, mesa_cliente, status, arquivado)
     `).eq('status_producao', 'Recebido').eq('arquivado', false);
@@ -942,7 +951,7 @@ async function renderDono(container) {
                 <input type="text" id="p_nome" placeholder="Produto / Insumo" class="md:col-span-2 p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-bold">
                 <input type="number" id="p_preco" placeholder="Venda R$" step="0.01" class="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-black text-center">
                 <input type="text" id="p_categoria" placeholder="Categoria (Ex: Bebidas)" class="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-bold">
-                <input type="number" id="p_estoque" placeholder="Aporte Inic." class="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-black text-center">
+                <input type="number" id="p_estoque" placeholder="Quant. Estoque" class="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-black text-center">
                 <button onclick="cadastrarProduto()" class="bg-red-600 text-white font-black p-4 rounded-xl shadow-lg border-b-4 border-red-800 hover:bg-red-700 uppercase text-xs tracking-widest active:scale-95 transition-all">SALVAR ITEM</button>
             </div>
             
@@ -1158,8 +1167,10 @@ window.renderMaster = async () => {
                                     ${new Date(c.data_vencimento) > new Date() ? 'ATIVO' : 'BLOQUEADO'}
                                 </span>
                             </td>
-                            <td class="p-6 text-center">
-                                <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-4 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-widest">Estender +30 Dias</button>
+                            <td class="p-6 text-center flex items-center justify-center gap-2">
+                                <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-tighter" title="Renovar +30 dias">Renovar</button>
+                                <button onclick="pausarCliente('${c.user_id}')" class="bg-yellow-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-yellow-600 transition-all uppercase tracking-tighter" title="Bloquear acesso imediatamente">Pausar</button>
+                                <button onclick="excluirParaSempre('${c.user_id}', '${c.nome_estabelecimento}')" class="bg-red-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-red-700 transition-all uppercase tracking-tighter" title="Apagar cliente definitivamente">Excluir</button>
                             </td>
                         </tr>
                     `).join('')}
@@ -1172,12 +1183,38 @@ window.renderMaster = async () => {
 window.estenderAssinatura = async (uid) => {
     const { data: atual } = await db.from('configuracoes').select('data_vencimento').eq('user_id', uid).single();
     const novaData = new Date(atual.data_vencimento);
+    if (novaData < new Date()) {
+        novaData.setTime(new Date().getTime());
+    }
     novaData.setDate(novaData.getDate() + 30);
 
     const { error } = await db.from('configuracoes').update({ data_vencimento: novaData, plano_status: 'ativo' }).eq('user_id', uid);
     if (!error) {
         showAlert("Assinatura estendida manualmente!");
         renderMaster();
+    }
+}
+
+window.pausarCliente = async (uid) => {
+    if (!confirm("Deseja BLOQUEAR o acesso deste cliente agora?")) return;
+    const { error } = await db.from('configuracoes').update({ plano_status: 'suspenso' }).eq('user_id', uid);
+    if (!error) {
+        showAlert("Acesso Suspenso!");
+        renderMaster();
+    }
+}
+
+window.excluirParaSempre = async (uid, nome) => {
+    if (!confirm(`⚠️ PERIGO: Você vai apagar o cliente "${nome}" e TODOS os seus dados? Esta ação não tem volta.`)) return;
+    
+    // Primeiro limpamos a configuração (que gerencia o acesso)
+    const { error } = await db.from('configuracoes').delete().eq('user_id', uid);
+    
+    if (!error) {
+        showAlert(`O cliente ${nome} foi removido.`);
+        renderMaster();
+    } else {
+        showAlert("Erro ao excluir: " + error.message, true);
     }
 }
 
