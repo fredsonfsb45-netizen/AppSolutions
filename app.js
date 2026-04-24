@@ -101,19 +101,35 @@ window.handleSignup = async () => {
     btn.disabled = true;
     btn.innerHTML = "CRIANDO CONTA...";
 
-    const { data, error } = await db.auth.signUp({ email, password });
+    const { data, error } = await db.auth.signUp({ 
+        email, 
+        password,
+        options: {
+            data: {
+                estabelecimento: est,
+                nome_completo: nome
+            }
+        }
+    });
 
     if (error) {
         showAlert("Erro no Cadastro: " + error.message, true);
         btn.disabled = false;
         btn.innerHTML = "CRIAR CONTA E ACESSAR AGORA";
     } else {
+        // Grava a configuração inicial
         if (data.user) {
-            await db.from('configuracoes').insert({ 
+            await db.from('configuracoes').insert({
                 user_id: data.user.id,
-                nome_estabelecimento: est 
+                nome_estabelecimento: est,
+                plano_status: 'trial',
+                data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
             });
-            showAlert("Conta criada! Redirecionando...");
+            
+            showAlert("✅ CONTA CRIADA! Digite seu e-mail e senha abaixo para entrar.");
+            toggleAuthMode(false); // Volta para a tela de login
+            btn.disabled = false;
+            btn.innerHTML = "CONTA CRIADA COM SUCESSO!";
         }
     }
 }
@@ -247,7 +263,7 @@ function showAlert(message, isError=false) {
     }, 4000);
 }
 
-window.setMode = async (mode) => {
+window.setMode = async (mode, targetAba = null) => {
     const isFredson = currentUser.email === 'fredsonfsb45@gmail.com';
     
     // Bloqueio de segurança: Se não tiver assinatura e não for você, não entra.
@@ -273,7 +289,7 @@ window.setMode = async (mode) => {
         } else if (mode === 'cozinha') {
             await renderCozinha(content);
         } else if (mode === 'dono') {
-            await renderDono(content);
+            await renderDono(content, targetAba || 'vendas');
         }
     } catch (error) {
         console.error(error);
@@ -312,7 +328,7 @@ window.verificarSenhaDono = async () => {
     }
 
     if (valida) {
-        setMode('dono');
+        setMode('dono', 'vendas');
     } else {
         showAlert('Senha Administrativa Incorreta!', true);
     }
@@ -483,7 +499,8 @@ window.mostrarProdutosPorCategoria = (cat) => {
         return `
             <div id="prod-card-${p.id}" data-pid="${p.id}" class="flex flex-col bg-white border-2 ${qtd > 0 ? 'border-green-500' : 'border-gray-100'} p-3 rounded-xl shadow-sm transition-all text-left">
                 <span class="font-black text-gray-800 text-sm leading-tight mb-1 truncate">${p.nome}</span>
-                <span class="text-[10px] font-bold text-green-600 uppercase mb-2">R$ ${p.preco.toFixed(2)}</span>
+                <span class="text-[10px] font-bold text-green-600 uppercase">R$ ${p.preco.toFixed(2)}</span>
+                <span class="text-[9px] font-black ${p.estoque_atual <= p.estoque_minimo ? 'text-red-500' : 'text-gray-400'} uppercase">Estoque: ${p.estoque_atual}</span>
                 
                 <div class="mt-auto flex items-center justify-between bg-gray-50 rounded-lg p-1">
                     <button onclick="alterarQtdCarrinho(${p.id}, -1)" class="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-500 font-bold">-</button>
@@ -831,7 +848,7 @@ window.marcarMesaPronta = async (cid) => {
 // ==========================================
 // VISÃO DO DONO
 // ==========================================
-async function renderDono(container) {
+async function renderDono(container, initialAba = 'vendas') {
     const [ {data: produtos}, {data: pagos}, {data: desp}, {data: cfg} ] = await Promise.all([
         db.from('produtos').select('*').order('nome'),
         db.from('itens_pedido').select('quantidade, produtos!inner(preco), comandas!inner(status, arquivado)').eq('comandas.status', 'Fechada').eq('arquivado', false),
@@ -871,9 +888,9 @@ async function renderDono(container) {
                 <p class="text-gray-400 font-medium italic">Gestão e Identidade Visual</p>
             </div>
             <div class="flex flex-wrap gap-2 w-full lg:w-auto">
-                <button onclick="changeDonoAba('vendas')" class="aba-btn active bg-white border-2 border-gray-100 flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📊 Financeiro</button>
-                <button onclick="changeDonoAba('estoque')" class="aba-btn bg-white border-2 border-gray-100 flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📦 Estoque</button>
-                <button onclick="changeDonoAba('branding')" class="aba-btn bg-gray-900 text-white flex-1 lg:flex-none font-black py-4 px-6 rounded-xl shadow-lg transition-all uppercase text-xs tracking-widest">🎨 Personalizar</button>
+                <button onclick="changeDonoAba('vendas')" class="aba-btn ${initialAba === 'vendas' ? 'active bg-white border-2 border-gray-100' : 'bg-gray-100'} flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📊 Financeiro</button>
+                <button onclick="changeDonoAba('estoque')" class="aba-btn ${initialAba === 'estoque' ? 'active bg-white border-2 border-gray-100' : 'bg-gray-100'} flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📦 Estoque</button>
+                <button onclick="changeDonoAba('branding')" class="aba-btn ${initialAba === 'branding' ? 'active bg-white border-2 border-gray-100' : 'bg-indigo-600 text-white'} flex-1 lg:flex-none font-black py-4 px-6 rounded-xl shadow-lg transition-all uppercase text-xs tracking-widest">🎨 Personalizar</button>
                 <button onclick="exportarExcel()" class="flex-1 lg:flex-none bg-blue-50 text-blue-700 font-black py-4 px-6 rounded-xl hover:bg-blue-100 transition-all shadow-sm border border-blue-200 uppercase text-xs tracking-widest">📉 Relatório</button>
                 <button onclick="document.getElementById('import-excel').click()" class="flex-1 lg:flex-none bg-green-50 text-green-700 font-black py-4 px-6 rounded-xl hover:bg-green-100 transition-all shadow-sm border border-green-200 uppercase text-xs tracking-widest">📥 Importar</button>
                 <input type="file" id="import-excel" class="hidden" accept=".xlsx, .xls" onchange="importarExcel(event)">
@@ -881,7 +898,7 @@ async function renderDono(container) {
         </div>
 
         <div id="dono-conteudo">
-            <div id="aba-vendas" class="animate-fade-in">
+            <div id="aba-vendas" class="${initialAba === 'vendas' ? '' : 'hidden'} animate-fade-in text-gray-800">
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-12">
             <!-- FINANCEIRO CARDS -->
             <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -937,11 +954,18 @@ async function renderDono(container) {
                 <button onclick="lancarDespesa()" class="w-full mt-4 bg-gray-800 text-white font-black py-4 rounded-xl hover:bg-black transition-all shadow-xl active:scale-95 uppercase text-xs tracking-widest">REGISTRAR SAÍDA NO CAIXA</button>
             </div>
 
+            <!-- FECHAMENTO DE DIA -->
+            <div class="bg-red-50 rounded-3xl shadow-xl p-8 border-2 border-red-100 flex flex-col justify-center text-center">
+                <div class="text-3xl mb-2">🔒</div>
+                <h2 class="text-xl font-black text-red-600 mb-2 uppercase">Encerrar Turno</h2>
+                <p class="text-red-400 text-xs font-bold mb-6">Esta ação zera o faturamento e as comandas do dia. Use somente no fim do expediente.</p>
+                <button onclick="zerarDia()" class="w-full bg-red-600 text-white font-black py-4 rounded-xl hover:bg-red-700 transition-all shadow-xl active:scale-95 uppercase text-xs tracking-widest">FECHAR CAIXA E ZERAR TUDO</button>
             </div>
         </div>
+    </div>
 
         <!-- ABA BRANDING (PERSONALIZAÇÃO) -->
-        <div id="aba-branding" class="hidden animate-fade-in">
+        <div id="aba-branding" class="${initialAba === 'branding' ? '' : 'hidden'} animate-fade-in text-gray-800">
             <div class="bg-white p-10 rounded-3xl shadow-xl border-t-8 border-indigo-500">
                 <h3 class="text-3xl font-black text-gray-800 mb-8 tracking-tighter italic">Identidade Visual & <span class="text-indigo-600">Marca</span></h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -984,7 +1008,7 @@ async function renderDono(container) {
         </div>
         
         <!-- ABA ESTOQUE / CARDÁPIO -->
-        <div id="aba-estoque" class="hidden animate-fade-in space-y-8">
+        <div id="aba-estoque" class="${initialAba === 'estoque' ? '' : 'hidden'} animate-fade-in space-y-8 text-gray-800">
             <div class="bg-white rounded-3xl shadow-xl p-8 border-t-8 border-red-600">
                 <h2 class="text-3xl font-black mb-8 text-gray-800 tracking-tighter">Gestão de <span class="text-red-600">Estoque & Itens</span></h2>
             <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-10 pb-10 border-b-2 border-dashed border-gray-100">
@@ -1046,7 +1070,7 @@ window.cadastrarProduto = async () => {
         showAlert("Erro: " + error.message, true);
     } else {
         showAlert("Novo Item Adicionado!");
-        setMode('dono');
+        setMode('dono', 'estoque');
     }
 }
 
@@ -1081,7 +1105,7 @@ window.salvarCorrecaoEstoque = async (id) => {
     const { error } = await db.from('produtos').update({ estoque_atual: novoEstoque }).eq('id', id);
     if (!error) {
         showAlert("Estoque Atualizado!");
-        setMode('dono');
+        setMode('dono', 'estoque');
     } else {
         showAlert("Erro: " + error.message, true);
     }
@@ -1256,7 +1280,6 @@ window.renderMaster = async () => {
                                 ${isAdmin ? '<span class="text-[10px] font-black text-gray-300 uppercase italic">Acesso Master</span>' : `
                                 <button onclick="confirmarPagamentoSaaS('${c.user_id}', ${c.valor_mensalidade})" class="bg-green-600 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-green-700 shadow-sm transition-all uppercase">💰 PAGO</button>
                                 <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-tighter">Renovar</button>
-                                <button onclick="pausarCliente('${c.user_id}')" class="bg-yellow-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-yellow-600 transition-all uppercase tracking-tighter">Pausar</button>
                                 <button onclick="excluirParaSempre('${c.user_id}', '${c.nome_estabelecimento}')" class="bg-red-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-red-700 transition-all uppercase tracking-tighter">Excluir</button>
                                 `}
                             </td>
@@ -1294,14 +1317,6 @@ window.atualizarMensalidade = async (uid, valor) => {
     }
 }
 
-window.pausarCliente = async (uid) => {
-    if (!confirm("Deseja BLOQUEAR o acesso deste cliente agora?")) return;
-    const { error } = await db.from('configuracoes').update({ plano_status: 'suspenso' }).eq('user_id', uid);
-    if (!error) {
-        showAlert("Acesso Suspenso!");
-        renderMaster();
-    }
-}
 
 window.excluirParaSempre = async (uid, nome) => {
     if (!confirm(`⚠️ PERIGO: Você vai apagar o cliente "${nome}" e TODOS os seus dados? Esta ação não tem volta.`)) return;
@@ -1386,15 +1401,18 @@ window.changeDonoAba = (aba) => {
     const target = document.getElementById(`aba-${aba}`);
     if (target) target.classList.remove('hidden');
 
-    // Estilo dos botões
+    // Estilo dos botões (UI Cleaner)
     document.querySelectorAll('.aba-btn').forEach(btn => {
-        btn.classList.remove('active', 'bg-gray-900', 'text-white');
-        btn.classList.add('bg-white', 'text-gray-700');
+        btn.classList.replace('active', 'inactive');
+        btn.classList.replace('bg-white', 'bg-gray-100');
+        btn.classList.remove('border-2', 'border-gray-100', 'text-white', 'bg-indigo-600');
+        btn.classList.add('text-gray-500');
     });
-    // O evento atual define o botão ativo
+
     if(event && event.currentTarget) {
-        event.currentTarget.classList.add('active', 'bg-gray-900', 'text-white');
-        event.currentTarget.classList.remove('bg-white', 'text-gray-700');
+        event.currentTarget.classList.add('active', 'bg-white', 'border-2', 'border-gray-100');
+        event.currentTarget.classList.remove('bg-gray-100', 'inactive', 'text-gray-500');
+        event.currentTarget.classList.add('text-gray-800');
     }
 }
 
