@@ -89,40 +89,32 @@ window.handleLogin = async () => {
 }
 
 window.handleSignup = async () => {
+    const est = document.getElementById('reg_estabelecimento').value;
     const nome = document.getElementById('reg_nome').value;
     const email = document.getElementById('reg_email').value;
     const password = document.getElementById('reg_password').value;
     const btn = document.getElementById('btn-signup');
 
-    if (!nome || !email || !password) return showAlert("Preencha todos os campos", true);
+    if (!est || !nome || !email || !password) return showAlert("Preencha todos os campos", true);
     if (password.length < 6) return showAlert("Senha deve ter ao menos 6 caracteres", true);
 
     btn.disabled = true;
     btn.innerHTML = "CRIANDO CONTA...";
 
-    console.log("Tentando Cadastro para:", email);
     const { data, error } = await db.auth.signUp({ email, password });
 
     if (error) {
-        console.error("Erro no SignUp:", error);
         showAlert("Erro no Cadastro: " + error.message, true);
         btn.disabled = false;
-        btn.innerHTML = "CADASTRAR E ENTRAR";
+        btn.innerHTML = "CRIAR CONTA E ACESSAR AGORA";
     } else {
-        console.log("Usuário cadastrado com sucesso!", data);
-        if (data.user && data.session) {
-            showAlert("Conta criada com sucesso!");
+        if (data.user) {
             await db.from('configuracoes').insert({ 
                 user_id: data.user.id,
-                nome_estabelecimento: nome 
+                nome_estabelecimento: est 
             });
-        } else if (data.user) {
-            showAlert("Conta pré-criada! Verifique seu e-mail para confirmar o acesso.", false);
-        } else {
-            showAlert("Erro inesperado no cadastro.", true);
+            showAlert("Conta criada! Redirecionando...");
         }
-        btn.disabled = false;
-        btn.innerHTML = "CADASTRAR E ENTRAR";
     }
 }
 
@@ -141,6 +133,10 @@ async function showApp() {
     // Busca configurações completas (SaaS)
     const { data: cfg, error } = await db.from('configuracoes').select('*').eq('user_id', currentUser.id).single();
     userConfig = cfg;
+
+    if (userConfig) {
+        aplicarTema(userConfig);
+    }
 
     if (error && error.code !== 'PGRST116') {
         console.error("Erro ao carregar SaaS Config:", error);
@@ -870,15 +866,19 @@ async function renderDono(container) {
     container.innerHTML = `
         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-10 gap-6">
             <div>
-                <h1 class="text-5xl font-black text-gray-800 tracking-tighter">Dashboard <span class="text-red-600 italic">Financial</span></h1>
-                <p class="text-gray-400 font-medium">Gerenciamento Diário de Fluxo e Estoque</p>
+                <h1 class="text-5xl font-black text-gray-800 tracking-tighter">Dashboard <span class="text-red-600 italic">Dono</span></h1>
+                <p class="text-gray-400 font-medium italic">Gestão e Identidade Visual</p>
             </div>
-            <div class="flex flex-wrap gap-3 w-full lg:w-auto">
+            <div class="flex flex-wrap gap-2 w-full lg:w-auto">
+                <button onclick="changeDonoAba('vendas')" class="aba-btn active bg-white border-2 border-gray-100 flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📊 Financeiro</button>
+                <button onclick="changeDonoAba('estoque')" class="aba-btn bg-white border-2 border-gray-100 flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📦 Estoque</button>
+                <button onclick="changeDonoAba('branding')" class="aba-btn bg-gray-900 text-white flex-1 lg:flex-none font-black py-4 px-6 rounded-xl shadow-lg transition-all uppercase text-xs tracking-widest">🎨 Personalizar</button>
                 <button onclick="exportarExcel()" class="flex-1 lg:flex-none bg-blue-50 text-blue-700 font-black py-4 px-6 rounded-xl hover:bg-blue-100 transition-all shadow-sm border border-blue-200 uppercase text-xs tracking-widest">📉 Relatório</button>
-                <button onclick="setMode('dono')" class="flex-1 lg:flex-none bg-gray-100 text-gray-700 font-black py-4 px-6 rounded-xl transition-all uppercase text-xs tracking-widest">↻ SINCRO</button>
-                <button onclick="zerarDia()" class="flex-1 lg:flex-none bg-red-600 text-white font-black py-4 px-6 rounded-xl shadow-lg border-b-4 border-red-800 active:transform active:scale-95 transition-all uppercase text-xs tracking-widest">🗑️ ENCERRAR HOJE</button>
             </div>
         </div>
+
+        <div id="dono-conteudo">
+            <div id="aba-vendas" class="animate-fade-in">
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-12">
             <!-- FINANCEIRO CARDS -->
             <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -934,25 +934,56 @@ async function renderDono(container) {
                 <button onclick="lancarDespesa()" class="w-full mt-4 bg-gray-800 text-white font-black py-4 rounded-xl hover:bg-black transition-all shadow-xl active:scale-95 uppercase text-xs tracking-widest">REGISTRAR SAÍDA NO CAIXA</button>
             </div>
 
-            <!-- PERSONALIZAÇÃO -->
-            <div class="bg-white rounded-3xl shadow-xl p-8 flex flex-col justify-between border-t-8 border-indigo-500">
-                <div>
-                  <h2 class="text-2xl font-black mb-1 text-gray-800">Personalização</h2>
-                  <p class="text-gray-400 text-sm font-medium mb-6">Mude o nome do seu estabelecimento na tela.</p>
+            </div>
+        </div>
+
+        <!-- ABA BRANDING (PERSONALIZAÇÃO) -->
+        <div id="aba-branding" class="hidden animate-fade-in">
+            <div class="bg-white p-10 rounded-3xl shadow-xl border-t-8 border-indigo-500">
+                <h3 class="text-3xl font-black text-gray-800 mb-8 tracking-tighter italic">Identidade Visual & <span class="text-indigo-600">Marca</span></h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Nome do Estabelecimento</label>
+                            <input type="text" id="b_nome" value="${userConfig.nome_estabelecimento || ''}" class="w-full p-5 bg-gray-50 border-2 border-gray-100 rounded-2xl font-black text-xl outline-none focus:border-indigo-500 transition-all shadow-inner">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1 italic">Cor do Cabeçalho (Header)</label>
+                            <div class="flex gap-4 items-center bg-gray-50 p-4 rounded-2xl border-2 border-gray-100">
+                                <input type="color" id="b_cor_header" value="${userConfig.cor_header || '#dc2626'}" class="w-16 h-12 rounded-xl cursor-pointer border-none bg-transparent">
+                                <span class="font-mono text-sm font-black text-gray-400 uppercase">${userConfig.cor_header || '#dc2626'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1 italic">Cor de Fundo Geral</label>
+                            <div class="flex gap-4 items-center bg-gray-50 p-4 rounded-2xl border-2 border-gray-100">
+                                <input type="color" id="b_cor_fundo" value="${userConfig.cor_fundo || '#f8fafc'}" class="w-16 h-12 rounded-xl cursor-pointer border-none bg-transparent">
+                                <span class="font-mono text-sm font-black text-gray-400 uppercase">${userConfig.cor_fundo || '#f8fafc'}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1 italic">Cor das Letras e Títulos</label>
+                            <div class="flex gap-4 items-center bg-gray-50 p-4 rounded-2xl border-2 border-gray-100">
+                                <input type="color" id="b_cor_texto" value="${userConfig.cor_texto || '#1e293b'}" class="w-16 h-12 rounded-xl cursor-pointer border-none bg-transparent">
+                                <span class="font-mono text-sm font-black text-gray-400 uppercase">${userConfig.cor_texto || '#1e293b'}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="flex gap-2">
-                    <input type="text" id="p_nome_est" value="${userConfig.nome_estabelecimento || ''}" class="flex-1 p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-bold outline-none">
-                    <button onclick="salvarNomeEstabelecimento()" class="bg-indigo-600 text-white font-black px-6 rounded-xl hover:bg-indigo-700 transition-all">SALVAR</button>
-                </div>
-                <div class="mt-4 p-4 bg-indigo-50 rounded-xl text-[10px] text-indigo-600 font-bold leading-tight uppercase italic opacity-75">
-                    * O nome alterado aparecerá imediatamente no topo do sistema.
+                <div class="mt-12 bg-indigo-50 p-6 rounded-3xl border-2 border-dashed border-indigo-100">
+                    <button onclick="salvarBranding()" class="w-full bg-indigo-600 text-white font-black py-6 rounded-2xl shadow-xl hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all text-xs uppercase tracking-widest">
+                        🚀 SALVAR IDENTIDADE VISUAL E APLICAR AGORA
+                    </button>
                 </div>
             </div>
         </div>
         
-        <!-- CARDÁPIO -->
-        <div class="bg-white rounded-3xl shadow-xl p-8 border-t-8 border-b10">
-            <h2 class="text-3xl font-black mb-8 text-gray-800 tracking-tighter">Management Board <span class="text-red-600">Cardápio</span></h2>
+        <!-- ABA ESTOQUE / CARDÁPIO -->
+        <div id="aba-estoque" class="hidden animate-fade-in space-y-8">
+            <div class="bg-white rounded-3xl shadow-xl p-8 border-t-8 border-red-600">
+                <h2 class="text-3xl font-black mb-8 text-gray-800 tracking-tighter">Gestão de <span class="text-red-600">Estoque & Itens</span></h2>
             <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-10 pb-10 border-b-2 border-dashed border-gray-100">
                 <input type="text" id="p_nome" placeholder="Produto / Insumo" class="md:col-span-2 p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-bold">
                 <input type="number" id="p_preco" placeholder="Venda R$" step="0.01" class="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-lg font-black text-center">
@@ -1127,9 +1158,10 @@ window.renderMaster = async () => {
 
     if (error) return showAlert("Erro ao carregar Central Master", true);
 
-    // Cálculos da Plataforma (Somente mensalidades de clientes ativos)
+    // Cálculos da Plataforma (Somente mensalidades)
     const agora = new Date();
-    const mensalidadeEstimada = clientes.reduce((acc, c) => {
+    const receitaAcumulada = clientes.reduce((acc, c) => acc + (parseFloat(c.saas_receita_acumulada) || 0), 0);
+    const receitaMensalPrevista = clientes.reduce((acc, c) => {
         const isAtivo = new Date(c.data_vencimento) > agora;
         return isAtivo ? acc + (parseFloat(c.valor_mensalidade) || 0) : acc;
     }, 0);
@@ -1151,13 +1183,15 @@ window.renderMaster = async () => {
 
         <!-- DASHBOARD FINANCEIRO SAAS (RECEITA DA PLATAFORMA) -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-            <div class="bg-white border-2 border-gray-100 p-8 rounded-3xl shadow-xl transform hover:scale-[1.02] transition-all">
-                <div class="text-xs font-black text-gray-400 uppercase mb-2">Receita SaaS Estimada (Mensalidades Ativas)</div>
-                <div class="text-5xl font-black tracking-tighter text-gray-800">R$ ${mensalidadeEstimada.toFixed(2)}</div>
+            <div class="bg-white border-2 border-gray-100 p-8 rounded-3xl shadow-xl">
+                <div class="text-xs font-black text-gray-400 uppercase mb-2">Total Recebido (Ciclo Atual)</div>
+                <div class="text-5xl font-black tracking-tighter text-gray-800">R$ ${receitaAcumulada.toFixed(2)}</div>
+                <p class="text-[10px] text-gray-400 mt-2 font-bold uppercase">VALORES CONFIRMADOS PELO MASTER</p>
             </div>
-            <div class="bg-gray-900 text-white p-8 rounded-3xl shadow-xl transform hover:scale-[1.02] transition-all">
-                <div class="text-xs font-black text-gray-500 uppercase mb-2">Potencial de Faturamento Total</div>
-                <div class="text-5xl font-black tracking-tighter text-green-400">R$ ${clientes.reduce((acc, c) => acc + (parseFloat(c.valor_mensalidade) || 0), 0).toFixed(2)}</div>
+            <div class="bg-gray-900 text-white p-8 rounded-3xl shadow-xl">
+                <div class="text-xs font-black text-gray-500 uppercase mb-2">Receita Mensal Prevista</div>
+                <div class="text-5xl font-black tracking-tighter text-green-400">R$ ${receitaMensalPrevista.toFixed(2)}</div>
+                <p class="text-[10px] text-gray-500 mt-2 font-bold uppercase">BASEADO EM CLIENTES ATIVOS</p>
             </div>
         </div>
 
@@ -1210,7 +1244,8 @@ window.renderMaster = async () => {
                                 </span>
                             </td>
                             <td class="p-6 text-center flex items-center justify-center gap-2">
-                                <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-tighter" title="Renovar +30 dias">Renovar</button>
+                                <button onclick="confirmarPagamentoSaaS('${c.user_id}', ${c.valor_mensalidade})" class="bg-green-600 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-green-700 shadow-sm transition-all uppercase">💰 PAGO</button>
+                                <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-tighter">Renovar</button>
                                 <button onclick="pausarCliente('${c.user_id}')" class="bg-yellow-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-yellow-600 transition-all uppercase tracking-tighter" title="Bloquear acesso imediatamente">Pausar</button>
                                 <button onclick="excluirParaSempre('${c.user_id}', '${c.nome_estabelecimento}')" class="bg-red-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-red-700 transition-all uppercase tracking-tighter" title="Apagar cliente definitivamente">Excluir</button>
                             </td>
@@ -1271,22 +1306,111 @@ window.excluirParaSempre = async (uid, nome) => {
 }
 
 window.zerarDadosSaaS = async () => {
-    if (!confirm("🚨 ATENÇÃO: Você está prestes a ZERAR o faturamento e custos de TODA A PLATAFORMA (Todos os clientes). Deseja continuar?")) return;
-    if (!confirm("Tem certeza absoluta? Essa ação não pode ser desfeita e afetará todos os estabelecimentos.")) return;
+    if (!confirm("🚨 ATENÇÃO: Você deseja zerar o FINANCEIRO DA PLATAFORMA? (Isso não afetará os dados dos restaurantes)")) return;
+    if (!confirm("Confirmar reset do Total Recebido?")) return;
+    
+    showAlert("Limpando receita master...", false);
 
-    showAlert("Limpando ecossistema...", false);
+    try {
+        // Agora zeramos apenas o seu contador saas_receita_acumulada para todos
+        const { error } = await db.from('configuracoes').update({ saas_receita_acumulada: 0 }).neq('id', 0);
+        
+        if (!error) {
+            showAlert("Financeiro Master Zerado!");
+            renderMaster();
+        } else {
+            throw error;
+        }
+    } catch (err) {
+        showAlert("Erro ao zerar: " + err.message, true);
+    }
+}
 
-    // Deleta registros de todas as tabelas financeiras
-    const [ {error: e1}, {error: e2} ] = await Promise.all([
-        db.from('itens_pedido').delete().neq('id', 0), // deleta tudo
-        db.from('despesas').delete().neq('id', 0)
-    ]);
+window.confirmarPagamentoSaaS = async (uid, valor) => {
+    // Busca valor atual para somar
+    const { data } = await db.from('configuracoes').select('saas_receita_acumulada').eq('user_id', uid).single();
+    const novoTotal = (parseFloat(data.saas_receita_acumulada) || 0) + parseFloat(valor);
 
-    if (!e1 && !e2) {
-        showAlert("Plataforma Zerada com sucesso!");
+    const { error } = await db.from('configuracoes').update({ saas_receita_acumulada: novoTotal }).eq('user_id', uid);
+    if (!error) {
+        showAlert("Pagamento Registrado com Sucesso! 💰");
         renderMaster();
+    }
+}
+
+function aplicarTema(cfg) {
+    if (!cfg) return;
+    const body = document.body;
+    const header = document.querySelector('nav');
+    
+    // Injeta CSS Dinâmico
+    let style = document.getElementById('dynamic-theme');
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'dynamic-theme';
+        document.head.appendChild(style);
+    }
+
+    style.innerHTML = `
+        :root {
+            --primary-color: ${cfg.cor_header || '#dc2626'};
+            --bg-color: ${cfg.cor_fundo || '#f8fafc'};
+            --text-color: ${cfg.cor_texto || '#1e293b'};
+        }
+        body { background-color: var(--bg-color) !important; color: var(--text-color) !important; }
+        nav { background-color: var(--primary-color) !important; }
+    `;
+    
+    if (header) header.style.backgroundColor = cfg.cor_header;
+    document.getElementById('app-brand-name').innerText = cfg.nome_estabelecimento || 'AppSolutions';
+}
+window.changeDonoAba = (aba) => {
+    // Esconde todas as abas
+    ['vendas', 'estoque', 'branding'].forEach(a => {
+        const el = document.getElementById(`aba-${a}`);
+        if (el) el.classList.add('hidden');
+    });
+    // Mostra a aba selecionada
+    const target = document.getElementById(`aba-${aba}`);
+    if (target) target.classList.remove('hidden');
+
+    // Estilo dos botões
+    document.querySelectorAll('.aba-btn').forEach(btn => {
+        btn.classList.remove('active', 'bg-gray-900', 'text-white');
+        btn.classList.add('bg-white', 'text-gray-700');
+    });
+    // O evento atual define o botão ativo
+    if(event && event.currentTarget) {
+        event.currentTarget.classList.add('active', 'bg-gray-900', 'text-white');
+        event.currentTarget.classList.remove('bg-white', 'text-gray-700');
+    }
+}
+
+window.salvarBranding = async () => {
+    const nome = document.getElementById('b_nome').value;
+    const header = document.getElementById('b_cor_header').value;
+    const fundo = document.getElementById('b_cor_fundo').value;
+    const texto = document.getElementById('b_cor_texto').value;
+
+    showAlert("Salvando sua marca...", false);
+
+    const { error } = await db.from('configuracoes').update({
+        nome_estabelecimento: nome,
+        cor_header: header,
+        cor_fundo: fundo,
+        cor_texto: texto
+    }).eq('user_id', currentUser.id);
+
+    if (!error) {
+        // Atualiza localmente e reaplica
+        userConfig.nome_estabelecimento = nome;
+        userConfig.cor_header = header;
+        userConfig.cor_fundo = fundo;
+        userConfig.cor_texto = texto;
+        aplicarTema(userConfig);
+        showAlert("Identidade Visual atualizada!");
     } else {
-        showAlert("Erro ao zerar dados!", true);
+        showAlert("Erro ao salvar branding", true);
     }
 }
 

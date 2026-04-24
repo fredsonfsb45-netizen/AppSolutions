@@ -40,25 +40,31 @@
                 </div>
 
                 <div id="signup-form" class="hidden">
-                    <h3 class="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Criar Novo Registro</h3>
+                    <h3 class="text-xl font-bold mb-6 text-gray-800 border-b pb-2 italic">ABRIR NOVA CONTA <span class="text-red-600">APPSOLUTIONS</span></h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nome do Estabelecimento</label>
-                            <input type="text" id="reg_nome" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition" placeholder="Ex: Churrascaria do Bairro">
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Nome do Estabelecimento</label>
+                            <input type="text" id="reg_estabelecimento" class="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-xl outline-none focus:border-red-600 font-bold" placeholder="Ex: Churrascaria do Fred">
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">E-mail do Restaurante</label>
-                            <input type="email" id="reg_email" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition" placeholder="email@negocio.com">
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Seu Nome / Responsável</label>
+                            <input type="text" id="reg_nome" class="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-xl outline-none focus:border-red-600 font-bold" placeholder="Seu nome completo">
                         </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Senha Segura</label>
-                            <input type="password" id="reg_password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition" placeholder="Mínimo 6 caracteres">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">E-mail de Acesso</label>
+                                <input type="email" id="reg_email" class="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-xl outline-none focus:border-red-600 font-bold" placeholder="email@negocio.com">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Crie uma Senha</label>
+                                <input type="password" id="reg_password" class="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-xl outline-none focus:border-red-600 font-bold" placeholder="Mínimo 6 dígitos">
+                            </div>
                         </div>
-                        <button onclick="handleSignup()" id="btn-signup" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg active:transform active:scale-95 transition-all">
-                            CADASTRAR E ENTRAR
+                        <button onclick="handleSignup()" id="btn-signup" class="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl shadow-xl active:transform active:scale-95 transition-all uppercase tracking-widest text-sm">
+                            CRIAR CONTA E ACESSAR AGORA
                         </button>
-                        <p class="text-center text-sm text-gray-500 mt-4">
-                            Já tem conta? <button onclick="toggleAuthMode(false)" class="text-red-600 font-bold hover:underline">Voltar ao Login</button>
+                        <p class="text-center text-xs text-gray-400 mt-4 font-bold">
+                            Já tem conta? <button onclick="toggleAuthMode(false)" class="text-red-600 font-black hover:underline uppercase">Voltar ao Login</button>
                         </p>
                     </div>
                 </div>
