@@ -183,12 +183,12 @@ async function showApp() {
         const meta = currentUser.user_metadata || {};
         const nomeReal = meta.estabelecimento || meta.nome_restaurante || meta.display_name || 'Meu Novo Restaurante';
         
-        const { data: newCfg } = await db.from('configuracoes').insert({ 
-            user_id: currentUser.id,
-            nome_estabelecimento: nomeReal,
-            plano_status: 'trial',
-            data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        }).select().single();
+            const { data: newCfg } = await db.from('configuracoes').insert({ 
+                user_id: currentUser.id,
+                nome_estabelecimento: nomeReal,
+                plano_status: 'trial',
+                data_vencimento: new Date().toISOString() // Vencimento agora
+            }).select().single();
         userConfig = newCfg;
     }
 
@@ -220,17 +220,26 @@ async function showApp() {
 function checkSubscription() {
     const agora = new Date();
     const vencimento = new Date(userConfig.data_vencimento);
-    const diffDias = Math.ceil((vencimento - agora) / (1000 * 60 * 60 * 24));
+    const status = userConfig.plano_status; // 'ativo', 'trial', 'suspenso', 'vencido'
 
-    // Bloqueio Total
-    if (diffDias <= 0) {
+    // 1. Bloqueio por Status Manual (Central Master)
+    if (status === 'suspenso' || status === 'bloqueado' || status === 'vencido') {
         showLockedScreen();
         return false;
     }
 
+    // 2. Bloqueio por Data (Comparação precisa por milisegundos)
+    if (vencimento <= agora) {
+        showLockedScreen();
+        return false;
+    }
+
+    // Cálculo de dias restantes para o aviso
+    const diffDias = Math.ceil((vencimento - agora) / (1000 * 60 * 60 * 24));
+
     // Aviso de Vencimento Próximo (3 dias)
     if (diffDias <= 3) {
-        showAlert(`Sua assinatura vence em ${diffDias} dias! Regularize para não perder o acesso.`, true);
+        showAlert(`Assinatura vence em ${diffDias} ${diffDias === 1 ? 'dia' : 'dias'}. Regularize seu acesso.`, true);
     }
 
     return true;
