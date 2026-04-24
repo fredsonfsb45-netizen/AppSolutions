@@ -1120,23 +1120,21 @@ window.salvarNomeEstabelecimento = async () => {
 // ==========================================
 window.renderMaster = async () => {
     const content = document.getElementById('main-content');
-    content.innerHTML = '<div class="text-center py-20 font-black animate-pulse text-red-600">PROCESSANDO DADOS FINANCEIROS GLOBAIS...</div>';
+    content.innerHTML = '<div class="text-center py-20 font-black animate-pulse text-red-600">PROCESSANDO RECEITA SAAS...</div>';
 
-    // Busca dados de TODOS os clientes (graças ao bypass RLS que fizemos)
-    const [ {data: clientes}, {data: vendas}, {data: custos} ] = await Promise.all([
-        db.from('configuracoes').select('*').order('data_vencimento', { ascending: true }),
-        db.from('itens_pedido').select('quantidade, produtos(preco)'),
-        db.from('despesas').select('valor')
-    ]);
+    // Agora buscamos apenas os dados dos administradores/clientes
+    const { data: clientes, error } = await db.from('configuracoes').select('*').order('data_vencimento', { ascending: true });
 
-    if (!clientes) return showAlert("Erro ao carregar Central Master", true);
+    if (error) return showAlert("Erro ao carregar Central Master", true);
 
-    // Cálculos Financeiros Globais
-    const faturamentoGlobal = vendas ? vendas.reduce((acc, v) => acc + (v.quantidade * (v.produtos?.preco || 0)), 0) : 0;
-    const custosGlobais = custos ? custos.reduce((acc, c) => acc + c.valor, 0) : 0;
-    const lucroGlobal = faturamentoGlobal - custosGlobais;
+    // Cálculos da Plataforma (Somente mensalidades de clientes ativos)
+    const agora = new Date();
+    const mensalidadeEstimada = clientes.reduce((acc, c) => {
+        const isAtivo = new Date(c.data_vencimento) > agora;
+        return isAtivo ? acc + (parseFloat(c.valor_mensalidade) || 0) : acc;
+    }, 0);
 
-    const ativos = clientes.filter(c => new Date(c.data_vencimento) > new Date()).length;
+    const ativos = clientes.filter(c => new Date(c.data_vencimento) > agora).length;
     const vencidos = clientes.length - ativos;
 
     content.innerHTML = `
@@ -1151,15 +1149,15 @@ window.renderMaster = async () => {
             </div>
         </div>
 
-        <!-- DASHBOARD FINANCEIRO GLOBAL -->
+        <!-- DASHBOARD FINANCEIRO SAAS (RECEITA DA PLATAFORMA) -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
             <div class="bg-white border-2 border-gray-100 p-8 rounded-3xl shadow-xl transform hover:scale-[1.02] transition-all">
-                <div class="text-xs font-black text-gray-400 uppercase mb-2">Faturamento Bruto Global (Total SaaS)</div>
-                <div class="text-5xl font-black tracking-tighter text-gray-800">R$ ${faturamentoGlobal.toFixed(2)}</div>
+                <div class="text-xs font-black text-gray-400 uppercase mb-2">Receita SaaS Estimada (Mensalidades Ativas)</div>
+                <div class="text-5xl font-black tracking-tighter text-gray-800">R$ ${mensalidadeEstimada.toFixed(2)}</div>
             </div>
             <div class="bg-gray-900 text-white p-8 rounded-3xl shadow-xl transform hover:scale-[1.02] transition-all">
-                <div class="text-xs font-black text-gray-500 uppercase mb-2">Lucro Líquido do Ecossistema</div>
-                <div class="text-5xl font-black tracking-tighter text-green-400">R$ ${lucroGlobal.toFixed(2)}</div>
+                <div class="text-xs font-black text-gray-500 uppercase mb-2">Potencial de Faturamento Total</div>
+                <div class="text-5xl font-black tracking-tighter text-green-400">R$ ${clientes.reduce((acc, c) => acc + (parseFloat(c.valor_mensalidade) || 0), 0).toFixed(2)}</div>
             </div>
         </div>
 
@@ -1184,7 +1182,7 @@ window.renderMaster = async () => {
                 <thead class="bg-gray-50">
                     <tr class="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                         <th class="p-6">Estabelecimento</th>
-                        <th class="p-6">Vencimento</th>
+                        <th class="p-6">Mensalidade</th>
                         <th class="p-6">Status</th>
                         <th class="p-6 text-center">Ações</th>
                     </tr>
@@ -1196,7 +1194,16 @@ window.renderMaster = async () => {
                                 <div class="font-black text-gray-800">${c.nome_estabelecimento}</div>
                                 <div class="text-[10px] text-gray-400 font-mono">${c.user_id}</div>
                             </td>
-                            <td class="p-6 font-bold text-gray-600">${new Date(c.data_vencimento).toLocaleDateString()}</td>
+                            <td class="p-6">
+                                <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-100">
+                                    <span class="text-[10px] font-black text-gray-400">R$</span>
+                                    <input type="number" 
+                                           step="0.01" 
+                                           value="${c.valor_mensalidade || 0}" 
+                                           onchange="atualizarMensalidade('${c.user_id}', this.value)"
+                                           class="w-20 bg-transparent font-black text-gray-700 outline-none text-sm">
+                                </div>
+                            </td>
                             <td class="p-6">
                                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${new Date(c.data_vencimento) > new Date() ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
                                     ${new Date(c.data_vencimento) > new Date() ? 'ATIVO' : 'BLOQUEADO'}
@@ -1227,6 +1234,16 @@ window.estenderAssinatura = async (uid) => {
     if (!error) {
         showAlert("Assinatura estendida manualmente!");
         renderMaster();
+    }
+}
+
+window.atualizarMensalidade = async (uid, valor) => {
+    const { error } = await db.from('configuracoes').update({ valor_mensalidade: parseFloat(valor) }).eq('user_id', uid);
+    if (!error) {
+        showAlert("Valor da mensalidade atualizado!");
+        renderMaster(); // Recarrega para atualizar os totais do dashboard
+    } else {
+        showAlert("Erro ao atualizar valor", true);
     }
 }
 
