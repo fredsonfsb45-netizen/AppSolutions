@@ -1567,7 +1567,8 @@ window.exportarExcel = async () => {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(itens || []), "itens_pedido");
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(desps || []), "despesas");
 
-        XLSX.writeFile(wb, `B10_Relatorio_${new Date().toLocaleDateString()}.xlsx`);
+        const nomeFormatado = (userConfig.nome_estabelecimento || 'AppSolutions').replace(/\s+/g, '_');
+        XLSX.writeFile(wb, `${nomeFormatado}_Relatorio_${new Date().toLocaleDateString()}.xlsx`);
         showAlert("Excel gerado com sucesso!");
     } catch (e) {
         showAlert("Erro na exportação: " + e.message, true);
