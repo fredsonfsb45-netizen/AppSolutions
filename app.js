@@ -121,26 +121,16 @@ window.handleSignup = async () => {
         }
 
         if (data.user) {
-            // Tenta criar a configuração, mas não deixa travar o processo se der erro aqui
-            try {
-                await db.from('configuracoes').insert({
-                    user_id: data.user.id,
-                    nome_estabelecimento: est,
-                    plano_status: 'trial',
-                    data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-                });
-            } catch (cfgErr) {
-                console.warn("Erro ao salvar config inicial, mas user criado:", cfgErr);
-            }
+            showAlert("✅ CONTA CRIADA COM SUCESSO!");
             
-            showAlert("✅ CONTA CRIADA! Digite seu e-mail e senha para entrar.");
             setTimeout(() => {
-                toggleAuthMode(false); // Volta para o login
+                showAlert("Digite seu e-mail e senha para entrar no painel.");
+                toggleAuthMode(false); // Move para o login
                 btn.disabled = false;
-                btn.innerHTML = "CLIQUE PARA ENTRAR";
-            }, 1000);
+                btn.innerHTML = "CRIAR CONTA";
+            }, 2000);
         } else {
-            showAlert("Verifique seu e-mail para confirmar a conta!", false);
+            showAlert("Quase lá! Verifique seu e-mail para ativar a conta.", false);
             btn.disabled = false;
             btn.innerHTML = "CRIAR CONTA";
         }
