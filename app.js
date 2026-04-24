@@ -108,7 +108,8 @@ window.handleSignup = async () => {
             options: {
                 data: {
                     estabelecimento: est,
-                    nome_restaurante: est, // Chave redundante para segurança
+                    nome_restaurante: est, 
+                    display_name: est, // Chave universal
                     nome_completo: nome
                 }
             }
@@ -121,17 +122,27 @@ window.handleSignup = async () => {
             return;
         }
 
-        if (data.user) {
-            showAlert("✅ CONTA CRIADA COM SUCESSO!");
+        if (data || !error) {
+            console.log("Cadastro detectado com sucesso");
+            const msg = "✅ CONTA CRIADA COM SUCESSO! Agora faça seu login.";
+            
+            // Tenta o alerta bonito
+            showAlert(msg);
+            
+            // Backup: Alerta do sistema (janela pop-up) para ter 100% de certeza
+            alert(msg);
             
             setTimeout(() => {
-                showAlert("Digite seu e-mail e senha para entrar no painel.");
-                toggleAuthMode(false); // Move para o login
-                btn.disabled = false;
-                btn.innerHTML = "CRIAR CONTA";
-            }, 2000);
+                toggleAuthMode(false); // Volta para o login
+                if (btn) {
+                   btn.disabled = false;
+                   btn.innerHTML = "CRIAR CONTA";
+                }
+            }, 500);
         } else {
-            showAlert("Quase lá! Verifique seu e-mail para ativar a conta.", false);
+            const msgChata = "Verifique seu e-mail para confirmar a conta!";
+            showAlert(msgChata, false);
+            alert(msgChata);
             btn.disabled = false;
             btn.innerHTML = "CRIAR CONTA";
         }
