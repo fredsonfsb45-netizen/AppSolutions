@@ -156,7 +156,7 @@ async function showApp() {
     document.getElementById('user-badge').innerText = currentUser.email;
     
     // Atualiza nome da marca personalizada
-    document.getElementById('app-brand-name').innerText = userConfig.nome_estabelecimento || 'CHURRASCO B10';
+    document.getElementById('app-brand-name').innerText = currentUser.email === 'fredsonfsb45@gmail.com' ? 'AppSolutions' : (userConfig.nome_estabelecimento || 'AppSolutions');
 
     // Ajustes de Interface por Perfil
     if (currentUser.email === 'fredsonfsb45@gmail.com') {
@@ -166,6 +166,7 @@ async function showApp() {
         document.getElementById('nav-dono').classList.add('hidden');
         
         renderMaster(); // Admin abre direto no Master
+        aplicarTemaMaster(); // Aplica cores neutras para o Master
         return;
     }
 
@@ -1166,7 +1167,7 @@ window.renderMaster = async () => {
         return isAtivo ? acc + (parseFloat(c.valor_mensalidade) || 0) : acc;
     }, 0);
 
-    const ativos = clientes.filter(c => new Date(c.data_vencimento) > agora).length;
+    const ativos = clientes.filter(c => new Date(c.data_vencimento) > agora || c.user_id === '7a037349-c10b-4ca8-8e5b-5a34f8cc42a2').length;
     const vencidos = clientes.length - ativos;
 
     content.innerHTML = `
@@ -1222,13 +1223,19 @@ window.renderMaster = async () => {
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    ${clientes.map(c => `
+                    ${clientes.map(c => {
+                        const isAdmin = c.user_id === '7a037349-c10b-4ca8-8e5b-5a34f8cc42a2';
+                        const isAtivo = new Date(c.data_vencimento) > agora || isAdmin;
+                        const nomeExibicao = isAdmin ? 'AppSolutions' : c.nome_estabelecimento;
+                        
+                        return `
                         <tr class="hover:bg-gray-50 transition-colors">
                             <td class="p-6">
-                                <div class="font-black text-gray-800">${c.nome_estabelecimento}</div>
-                                <div class="text-[10px] text-gray-400 font-mono">${c.user_id}</div>
+                                <div class="font-black text-gray-800">${nomeExibicao}</div>
+                                <div class="text-[10px] text-gray-400 font-mono italic">${isAdmin ? 'PLATAFORMA MASTER' : c.user_id}</div>
                             </td>
                             <td class="p-6">
+                                ${isAdmin ? '<span class="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg italic tracking-widest">CONTA LIBERADA</span>' : `
                                 <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-100">
                                     <span class="text-[10px] font-black text-gray-400">R$</span>
                                     <input type="number" 
@@ -1236,21 +1243,24 @@ window.renderMaster = async () => {
                                            value="${c.valor_mensalidade || 0}" 
                                            onchange="atualizarMensalidade('${c.user_id}', this.value)"
                                            class="w-20 bg-transparent font-black text-gray-700 outline-none text-sm">
-                                </div>
+                                </div>`}
                             </td>
                             <td class="p-6">
-                                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${new Date(c.data_vencimento) > new Date() ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
-                                    ${new Date(c.data_vencimento) > new Date() ? 'ATIVO' : 'BLOQUEADO'}
+                                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${isAtivo ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                                    ${isAdmin ? 'VITALÍCIO' : (isAtivo ? 'ATIVO' : 'BLOQUEADO')}
                                 </span>
                             </td>
                             <td class="p-6 text-center flex items-center justify-center gap-2">
+                                ${isAdmin ? '<span class="text-[10px] font-black text-gray-300 uppercase italic">Acesso Master</span>' : `
                                 <button onclick="confirmarPagamentoSaaS('${c.user_id}', ${c.valor_mensalidade})" class="bg-green-600 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-green-700 shadow-sm transition-all uppercase">💰 PAGO</button>
                                 <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-tighter">Renovar</button>
-                                <button onclick="pausarCliente('${c.user_id}')" class="bg-yellow-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-yellow-600 transition-all uppercase tracking-tighter" title="Bloquear acesso imediatamente">Pausar</button>
-                                <button onclick="excluirParaSempre('${c.user_id}', '${c.nome_estabelecimento}')" class="bg-red-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-red-700 transition-all uppercase tracking-tighter" title="Apagar cliente definitivamente">Excluir</button>
+                                <button onclick="pausarCliente('${c.user_id}')" class="bg-yellow-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-yellow-600 transition-all uppercase tracking-tighter">Pausar</button>
+                                <button onclick="excluirParaSempre('${c.user_id}', '${c.nome_estabelecimento}')" class="bg-red-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-red-700 transition-all uppercase tracking-tighter">Excluir</button>
+                                `}
                             </td>
                         </tr>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </tbody>
             </table>
         </div>
@@ -1439,4 +1449,13 @@ window.exportarExcel = async () => {
     } catch (e) {
         showAlert("Erro na exportação: " + e.message, true);
     }
+}
+
+function aplicarTemaMaster() {
+    aplicarTema({
+        cor_header: '#000000',
+        cor_fundo: '#f8fafc',
+        cor_texto: '#1e293b',
+        nome_estabelecimento: 'AppSolutions'
+    });
 }
