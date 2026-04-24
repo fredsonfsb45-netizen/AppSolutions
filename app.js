@@ -162,12 +162,18 @@ async function showApp() {
     // Atualiza nome da marca personalizada
     document.getElementById('app-brand-name').innerText = userConfig.nome_estabelecimento || 'CHURRASCO B10';
 
-    // Habilita Painel Master apenas para o Fredson
+    // Ajustes de Interface por Perfil
     if (currentUser.email === 'fredsonfsb45@gmail.com') {
         document.getElementById('nav-master').classList.remove('hidden');
+        document.getElementById('nav-garcom').classList.add('hidden');
+        document.getElementById('nav-cozinha').classList.add('hidden');
+        document.getElementById('nav-dono').classList.add('hidden');
+        
+        renderMaster(); // Admin abre direto no Master
+        return;
     }
 
-    // Checagem de Assinatura
+    // Checagem de Assinatura para clientes normais
     if (!checkSubscription()) return;
 
     setMode('garcom');
@@ -1114,33 +1120,59 @@ window.salvarNomeEstabelecimento = async () => {
 // ==========================================
 window.renderMaster = async () => {
     const content = document.getElementById('main-content');
-    content.innerHTML = '<div class="text-center py-20 font-black animate-pulse">CARREGANDO DADOS DO ECOSSISTEMA...</div>';
+    content.innerHTML = '<div class="text-center py-20 font-black animate-pulse text-red-600">PROCESSANDO DADOS FINANCEIROS GLOBAIS...</div>';
 
-    const { data: clientes, error } = await db.from('configuracoes').select('*').order('data_vencimento', { ascending: true });
+    // Busca dados de TODOS os clientes (graças ao bypass RLS que fizemos)
+    const [ {data: clientes}, {data: vendas}, {data: custos} ] = await Promise.all([
+        db.from('configuracoes').select('*').order('data_vencimento', { ascending: true }),
+        db.from('itens_pedido').select('quantidade, produtos(preco)'),
+        db.from('despesas').select('valor')
+    ]);
 
-    if (error) return showAlert("Erro ao carregar Central Master", true);
+    if (!clientes) return showAlert("Erro ao carregar Central Master", true);
+
+    // Cálculos Financeiros Globais
+    const faturamentoGlobal = vendas ? vendas.reduce((acc, v) => acc + (v.quantidade * (v.produtos?.preco || 0)), 0) : 0;
+    const custosGlobais = custos ? custos.reduce((acc, c) => acc + c.valor, 0) : 0;
+    const lucroGlobal = faturamentoGlobal - custosGlobais;
 
     const ativos = clientes.filter(c => new Date(c.data_vencimento) > new Date()).length;
     const vencidos = clientes.length - ativos;
 
     content.innerHTML = `
-        <div class="mb-10">
-            <h1 class="text-5xl font-black text-gray-900 tracking-tighter italic">CENTRAL MASTER <span class="text-red-600">APPSOLUTIONS</span></h1>
-            <p class="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Monitoramento Global em Tempo Real</p>
+        <div class="mb-10 flex justify-between items-end">
+            <div>
+                <h1 class="text-5xl font-black text-gray-900 tracking-tighter italic">CENTRAL MASTER <span class="text-red-600">APPSOLUTIONS</span></h1>
+                <p class="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Monitoramento Financeiro e de Licenças</p>
+            </div>
+            <button onclick="logout()" class="bg-gray-100 text-gray-500 px-6 py-2 rounded-xl font-black text-[10px] uppercase hover:bg-red-50 hover:text-red-600 transition-all">Sair do Sistema 🚪</button>
         </div>
 
+        <!-- DASHBOARD FINANCEIRO GLOBAL -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            <div class="bg-white border-2 border-gray-100 p-8 rounded-3xl shadow-xl transform hover:scale-[1.02] transition-all">
+                <div class="text-xs font-black text-gray-400 uppercase mb-2">Faturamento Bruto Global (Total SaaS)</div>
+                <div class="text-5xl font-black tracking-tighter text-gray-800">R$ ${faturamentoGlobal.toFixed(2)}</div>
+            </div>
+            <div class="bg-gray-900 text-white p-8 rounded-3xl shadow-xl transform hover:scale-[1.02] transition-all">
+                <div class="text-xs font-black text-gray-500 uppercase mb-2">Lucro Líquido do Ecossistema</div>
+                <div class="text-5xl font-black tracking-tighter text-green-400">R$ ${lucroGlobal.toFixed(2)}</div>
+            </div>
+        </div>
+
+        <!-- KPI DE LICENÇAS -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <div class="bg-gray-900 text-white p-8 rounded-3xl shadow-xl">
-                <div class="text-xs font-black text-gray-500 uppercase mb-2">Total de Licenças</div>
-                <div class="text-5xl font-black tracking-tighter">${clientes.length}</div>
+            <div class="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                <div class="text-[10px] font-black text-gray-400 uppercase mb-1">Total de Estabelecimentos</div>
+                <div class="text-3xl font-black">${clientes.length}</div>
             </div>
-            <div class="bg-green-500 text-white p-8 rounded-3xl shadow-xl">
-                <div class="text-xs font-black text-green-200 uppercase mb-2">Clientes em Dia</div>
-                <div class="text-5xl font-black tracking-tighter">${ativos}</div>
+            <div class="bg-green-50 p-6 rounded-2xl border border-green-100">
+                <div class="text-[10px] font-black text-green-600 uppercase mb-1">Contas Ativas</div>
+                <div class="text-3xl font-black text-green-700">${ativos}</div>
             </div>
-            <div class="bg-red-500 text-white p-8 rounded-3xl shadow-xl">
-                <div class="text-xs font-black text-red-200 uppercase mb-2">Inadimplentes / Vencidos</div>
-                <div class="text-5xl font-black tracking-tighter">${vencidos}</div>
+            <div class="bg-red-50 p-6 rounded-2xl border border-red-100">
+                <div class="text-[10px] font-black text-red-600 uppercase mb-1">Contas Bloqueadas</div>
+                <div class="text-3xl font-black text-red-700">${vencidos}</div>
             </div>
         </div>
 
