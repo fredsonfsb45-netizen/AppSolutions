@@ -50,6 +50,9 @@ async function checkUserSession() {
 
     // Listener para mudanças de estado (Login/Logout)
     db.auth.onAuthStateChange((event, session) => {
+        // Bloqueia mudança de tela automática se estivermos no meio de um cadastro
+        if (window.isSigningUp) return;
+
         if (event === 'SIGNED_IN') {
             currentUser = session.user;
             showApp();
@@ -98,8 +101,12 @@ window.handleSignup = async () => {
     if (!est || !nome || !email || !password) return showAlert("Preencha todos os campos", true);
     if (password.length < 6) return showAlert("Senha deve ter ao menos 6 caracteres", true);
 
+    window.isSigningUp = true; // Bloqueia redirecionamento automático
     btn.disabled = true;
     btn.innerHTML = "CRIANDO CONTA...";
+
+    // Salva no localStorage como backup de emergência para o primeiro login
+    localStorage.setItem('temp_rest_name', est);
 
     try {
         const { data, error } = await db.auth.signUp({ 
@@ -108,49 +115,40 @@ window.handleSignup = async () => {
             options: {
                 data: {
                     estabelecimento: est,
-                    nome_restaurante: est, 
-                    display_name: est, // Chave universal
+                    display_name: est,
                     nome_completo: nome
                 }
             }
         });
 
         if (error) {
+            window.isSigningUp = false;
             showAlert("Erro: " + error.message, true);
             btn.disabled = false;
-            btn.innerHTML = "CRIAR CONTA E ACESSAR AGORA";
+            btn.innerHTML = "CRIAR CONTA";
             return;
         }
 
-        if (data || !error) {
-            console.log("Cadastro detectado com sucesso");
-            const msg = "✅ CONTA CRIADA COM SUCESSO! Agora faça seu login.";
-            
-            // Tenta o alerta bonito
-            showAlert(msg);
-            
-            // Backup: Alerta do sistema (janela pop-up) para ter 100% de certeza
-            alert(msg);
-            
-            setTimeout(() => {
-                toggleAuthMode(false); // Volta para o login
-                if (btn) {
-                   btn.disabled = false;
-                   btn.innerHTML = "CRIAR CONTA";
-                }
-            }, 500);
-        } else {
-            const msgChata = "Verifique seu e-mail para confirmar a conta!";
-            showAlert(msgChata, false);
-            alert(msgChata);
-            btn.disabled = false;
-            btn.innerHTML = "CRIAR CONTA";
-        }
+        const msg = "✅ CONTA CRIADA COM SUCESSO! Agora faça seu login.";
+        showAlert(msg);
+        alert(msg);
+        
+        // Pequeno atraso para o banco processar o Trigger inicial
+        setTimeout(() => {
+            window.isSigningUp = false;
+            toggleAuthMode(false); 
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = "CRIAR CONTA";
+            }
+        }, 1000);
+
     } catch (err) {
+        window.isSigningUp = false;
         console.error("Erro Fatal no Signup:", err);
-        showAlert("Erro de Conexão: Tente novamente.", true);
+        showAlert("Erro de Conexão. Tente novamente.", true);
         btn.disabled = false;
-        btn.innerHTML = "TENTAR NOVAMENTE";
+        btn.innerHTML = "RECOMECAR";
     }
 }
 
@@ -178,10 +176,11 @@ async function showApp() {
         console.error("Erro ao carregar SaaS Config:", error);
     }
 
-    // Se não existir config (usuário novo), cria o trial de 7 dias extraindo o nome dos metadados
+    // Se não existir config (usuário novo), cria o trial de 7 dias extraindo o nome
     if (!userConfig) {
         const meta = currentUser.user_metadata || {};
-        const nomeReal = meta.estabelecimento || meta.nome_restaurante || meta.display_name || 'Meu Novo Restaurante';
+        const backupName = localStorage.getItem('temp_rest_name');
+        const nomeReal = backupName || meta.estabelecimento || meta.display_name || 'Novo Restaurante';
         
         const { data: newCfg } = await db.from('configuracoes').insert({ 
             user_id: currentUser.id,
@@ -190,6 +189,9 @@ async function showApp() {
             data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         }).select().single();
         userConfig = newCfg;
+        
+        // Limpa o backup
+        localStorage.removeItem('temp_rest_name');
     }
 
     document.getElementById('auth-container').classList.add('hidden');
