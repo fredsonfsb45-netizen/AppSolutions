@@ -187,7 +187,8 @@ async function showApp() {
                 user_id: currentUser.id,
                 nome_estabelecimento: nomeReal,
                 plano_status: 'trial',
-                data_vencimento: new Date().toISOString() // Vencimento agora
+                data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                valor_mensalidade: 29.90
             }).select().single();
         userConfig = newCfg;
     }
@@ -212,7 +213,22 @@ async function showApp() {
     }
 
     // Checagem de Assinatura para clientes normais
-    if (!checkSubscription()) return;
+    const isAllowed = checkSubscription();
+    if (!isAllowed) return;
+
+    // AVISO DE BOAS-VINDAS (Se for trial e estiver começando)
+    if (userConfig.plano_status === 'trial') {
+        const agora = new Date();
+        const vencimento = new Date(userConfig.data_vencimento);
+        const diffHoras = (vencimento - agora) / (1000 * 60 * 60);
+
+        // Se o trial foi criado há pouco tempo (menos de 1 hora de uso)
+        if (diffHoras > 167) { // 168h = 7 dias. 167h significa que acabou de criar.
+             setTimeout(() => {
+                alert("✨ BEM-VINDO À APPSOLUTIONS!\n\nVocê tem 7 dias de teste grátis liberados.\nAproveite para configurar seu cardápio e estoque.\n\nApós este período, a mensalidade será de apenas R$ 29,90.");
+             }, 1000);
+        }
+    }
 
     setMode('garcom');
 }
