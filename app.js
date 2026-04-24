@@ -1122,7 +1122,10 @@ async function renderDono(container, initialAba = 'vendas') {
                             <td class="py-5 font-bold text-gray-800">${p.nome}</td>
                             <td class="py-5 font-black text-gray-800">R$ ${p.preco.toFixed(2)}</td>
                             <td class="py-5"><span class="bg-gray-100 px-3 py-1 rounded-full font-black text-gray-700 text-sm">${p.estoque_atual} UND</span></td>
-                            <td class="py-5 text-center"><button onclick="corrigirEstoque(${p.id}, '${p.nome}', ${p.estoque_atual})" class="bg-gray-800 text-white text-[10px] font-black px-4 py-2 rounded-lg shadow-sm hover:scale-105 transition-all uppercase tracking-widest">Mudar Físico</button></td>
+                            <td class="py-5 text-center flex items-center justify-center gap-2">
+                                <button onclick="corrigirEstoque(${p.id}, '${p.nome}', ${p.estoque_atual})" class="bg-gray-800 text-white text-[10px] font-black px-4 py-2 rounded-lg shadow-sm hover:scale-105 transition-all uppercase tracking-widest">Ajustar</button>
+                                <button onclick="excluirProduto(${p.id}, '${p.nome}')" class="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-600 hover:text-white transition-all" title="Excluir Produto">🗑️</button>
+                            </td>
                         </tr>`).join('') : '<tr><td colspan="5" class="text-center py-10 font-bold text-gray-400 italic">Nenhum item no cardápio.</td></tr>'}
                     </tbody>
                 </table>
@@ -1193,6 +1196,18 @@ window.salvarCorrecaoEstoque = async (id) => {
         setMode('dono', 'estoque');
     } else {
         showAlert("Erro: " + error.message, true);
+    }
+}
+
+window.excluirProduto = async (id, nome) => {
+    if (!confirm(`Deseja realmente EXCLUIR o produto "${nome}"? Isso removerá o item do cardápio e não poderá ser desfeito.`)) return;
+    
+    const { error } = await db.from('produtos').delete().eq('id', id);
+    if (!error) {
+        showAlert("Produto Excluído!");
+        setMode('dono', 'estoque');
+    } else {
+        showAlert("Erro ao excluir: " + error.message, true);
     }
 }
 
