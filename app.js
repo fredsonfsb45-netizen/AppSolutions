@@ -391,7 +391,15 @@ async function renderGarcom(container) {
                     </div>
                 </div>
 
-                <p id="hint-grid" class="text-center text-gray-400 text-xs font-bold leading-tight mt-4 uppercase tracking-widest italic animate-pulse">Escolha primeiro a Comanda, depois a Categoria do produto.</p>
+                <p id="hint-grid" class="text-center text-gray-400 text-[10px] font-black leading-tight mt-4 uppercase tracking-widest italic animate-pulse">1. Escolha a Mesa <br> 2. Clique na Categoria <br> 3. Ajuste os Itens abaixo</p>
+
+                <div class="mt-8 pt-6 border-t border-dashed border-gray-200">
+                    <h3 class="text-sm font-black text-gray-800 mb-2 uppercase italic tracking-tighter">Revisar Pedido do Lote</h3>
+                    <div id="resumo-carrinho" class="bg-gray-50 rounded-2xl p-4 min-h-[60px] mb-4">
+                        <p class="text-center text-gray-400 text-xs italic py-4">Nenhum item selecionado</p>
+                    </div>
+                    <button id="btn-enviar-lote" onclick="enviarCarrinho()" class="hidden w-full bg-green-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-green-600/20 active:scale-95 transition-all uppercase tracking-widest">ENVIAR LOTE PARA COZINHA 📤</button>
+                </div>
             </div>
         </div>
         
@@ -423,7 +431,6 @@ async function renderGarcom(container) {
                     <span class="text-4xl mb-2">🧾</span>
                     <p class="font-medium">Selecione uma mesa para conferência</p>
                 </div>
-            </div>
         </div>
     `;
 
@@ -443,6 +450,9 @@ async function renderGarcom(container) {
     window.currentProdutos = produtos;
 }
 
+// CARRINHO GLOBAL
+window.carrinho = [];
+
 window.mostrarProdutosPorCategoria = (cat) => {
     const cid = document.getElementById('g_comanda').value;
     if (!cid) return showAlert("Selecione a Comanda primeiro!", true);
@@ -455,31 +465,107 @@ window.mostrarProdutosPorCategoria = (cat) => {
 
     const filtrados = window.currentProdutos.filter(p => (p.categoria || 'Geral') === cat);
     const gridProd = document.getElementById('produtos-grid');
-    gridProd.innerHTML = filtrados.map(p => `
-        <button onclick="lancarPedidoRapido(${p.id}, '${p.nome}')" class="flex flex-col bg-white border-2 border-gray-100 p-3 rounded-xl hover:border-green-500 shadow-sm transition-all text-left">
-            <span class="font-black text-gray-800 text-sm leading-tight mb-1 text-wrap">${p.nome}</span>
-            <span class="text-[10px] font-bold text-green-600 uppercase leading-none">R$ ${p.preco.toFixed(2)}</span>
-            <span class="text-[8px] font-black text-gray-400 uppercase mt-auto">Estoque: ${p.estoque_atual}</span>
-        </button>
+    gridProd.innerHTML = filtrados.map(p => {
+        const noCarrinho = window.carrinho.find(item => item.id === p.id);
+        const qtd = noCarrinho ? noCarrinho.quantidade : 0;
+
+        return `
+            <div class="flex flex-col bg-white border-2 ${qtd > 0 ? 'border-green-500' : 'border-gray-100'} p-3 rounded-xl shadow-sm transition-all text-left">
+                <span class="font-black text-gray-800 text-sm leading-tight mb-1 truncate">${p.nome}</span>
+                <span class="text-[10px] font-bold text-green-600 uppercase mb-2">R$ ${p.preco.toFixed(2)}</span>
+                
+                <div class="mt-auto flex items-center justify-between bg-gray-50 rounded-lg p-1">
+                    <button onclick="alterarQtdCarrinho(${p.id}, -1)" class="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-500 font-bold">-</button>
+                    <span class="font-black text-gray-800 text-sm">${qtd}</span>
+                    <button onclick="alterarQtdCarrinho(${p.id}, 1)" class="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-green-600 font-bold">+</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+window.alterarQtdCarrinho = (pid, delta) => {
+    const p = window.currentProdutos.find(item => item.id === pid);
+    const index = window.carrinho.findIndex(item => item.id === pid);
+
+    if (index > -1) {
+        window.carrinho[index].quantidade += delta;
+        if (window.carrinho[index].quantidade <= 0) {
+            window.carrinho.splice(index, 1);
+        }
+    } else if (delta > 0) {
+        window.carrinho.push({ ...p, quantidade: 1 });
+    }
+
+    // Mantém a categoria aberta e atualiza o visual dos botões
+    const cat = document.getElementById('selected-cat-name').innerText;
+    mostrarProdutosPorCategoria(cat);
+    renderResumoCarrinho();
+}
+
+function renderResumoCarrinho() {
+    const resumo = document.getElementById('resumo-carrinho');
+    if (!resumo) return;
+
+    if (window.carrinho.length === 0) {
+        resumo.innerHTML = '<p class="text-center text-gray-400 text-xs italic py-4">Nenhum item selecionado</p>';
+        document.getElementById('btn-enviar-lote').classList.add('hidden');
+        return;
+    }
+
+    document.getElementById('btn-enviar-lote').classList.remove('hidden');
+    resumo.innerHTML = window.carrinho.map((item, idx) => `
+        <div class="flex justify-between items-center py-2 border-b border-dashed border-gray-100 last:border-0">
+            <span class="text-xs font-bold text-gray-700">${item.quantidade}x ${item.nome}</span>
+            <button onclick="removerItemCarrinho(${idx})" class="text-red-300 hover:text-red-600 px-2 font-black">×</button>
+        </div>
     `).join('');
+}
+
+window.removerItemCarrinho = (index) => {
+    window.carrinho.splice(index, 1);
+    const prodSect = document.getElementById('produtos-selecao');
+    if (!prodSect.classList.contains('hidden')) {
+        const cat = document.getElementById('selected-cat-name').innerText;
+        mostrarProdutosPorCategoria(cat);
+    }
+    renderResumoCarrinho();
+}
+
+window.enviarCarrinho = async () => {
+    const cid = document.getElementById('g_comanda').value;
+    if (!cid) return showAlert("Selecione a Comanda!", true);
+    if (window.carrinho.length === 0) return;
+
+    const btn = document.getElementById('btn-enviar-lote');
+    btn.disabled = true;
+    btn.innerText = "ENVIANDO...";
+
+    try {
+        // Envia item por item usando a RPC segura
+        for (const item of window.carrinho) {
+            const { error } = await db.rpc('lancar_item_seguro', { 
+                p_comanda_id: cid, 
+                p_produto_id: item.id, 
+                p_quantidade: item.quantidade 
+            });
+            if (error) throw error;
+        }
+
+        showAlert("Pedido enviado com sucesso! 🚀");
+        window.carrinho = [];
+        setMode('garcom');
+    } catch (e) {
+        showAlert("Erro no estoque: " + e.message, true);
+        btn.disabled = false;
+        btn.innerText = "ENVIAR PEDIDO";
+    }
 }
 
 window.voltarCategorias = () => {
     document.getElementById('categoria-grid').classList.remove('hidden');
     document.getElementById('hint-grid').classList.remove('hidden');
     document.getElementById('produtos-selecao').classList.add('hidden');
-}
-
-window.lancarPedidoRapido = async (pid, nome) => {
-    const cid = document.getElementById('g_comanda').value;
-    const { error } = await db.rpc('lancar_item_seguro', { p_comanda_id: cid, p_produto_id: pid, p_quantidade: 1 });
-    
-    if (!error) {
-        showAlert(`${nome} enviado! 🔥`);
-        setMode('garcom');
-    } else {
-        showAlert("Erro no estoque!", true);
-    }
 }
 
 window.abrirMesa = async () => {
@@ -629,30 +715,52 @@ window.confirmarFechamentoMesa = async (cid) => {
 // VISÃO DA COZINHA
 // ==========================================
 async function renderCozinha(container) {
-    const { data: pendentes, error } = await db.from('itens_pedido').select('id, quantidade, produtos!inner(nome), comandas!inner(mesa_cliente, status, arquivado)').eq('status_producao', 'Recebido').eq('arquivado', false);
+    const { data: pendentes, error } = await db.from('itens_pedido').select(`
+        id, 
+        quantidade, 
+        produtos!inner(nome), 
+        comandas!inner(id, mesa_cliente, status, arquivado)
+    `).eq('status_producao', 'Recebido').eq('arquivado', false);
     
     const ativos = pendentes ? pendentes.filter(p => p.comandas && p.comandas.status === 'Aberta' && p.comandas.arquivado === false) : [];
     
-    let cards = ativos.length ? '' : '<div class="col-span-full border-4 border-dashed border-gray-100 rounded-3xl p-20 flex flex-col items-center justify-center text-gray-300"><span class="text-8xl mb-4">✨</span><p class="text-xl font-black italic tracking-widest text-center">COZINHA LIMPA: SEM TICKETS AGUARDANDO</p></div>';
+    // Agrupa os itens por ID da Comanda (Mesa)
+    const mesasAgrupadas = {};
+    ativos.forEach(item => {
+        const cid = item.comandas.id;
+        if (!mesasAgrupadas[cid]) {
+            mesasAgrupadas[cid] = {
+                nome: item.comandas.mesa_cliente,
+                itens: []
+            };
+        }
+        mesasAgrupadas[cid].itens.push(item);
+    });
+
+    const idsMesas = Object.keys(mesasAgrupadas);
+    let cards = idsMesas.length ? '' : '<div class="col-span-full border-4 border-dashed border-gray-100 rounded-3xl p-20 flex flex-col items-center justify-center text-gray-300"><span class="text-8xl mb-4">✨</span><p class="text-xl font-black italic tracking-widest text-center">COZINHA LIMPA: SEM TICKETS AGUARDANDO</p></div>';
     
-    if (ativos) ativos.forEach(p => {
+    idsMesas.forEach(cid => {
+        const mesa = mesasAgrupadas[cid];
         cards += `
-            <div class="bg-yellow-50 border-t-8 border-yellow-400 p-6 rounded-2xl shadow-xl flex flex-col justify-between hover:bg-yellow-100 transition-colors duration-300 animate-fade-in">
-                <div class="mb-6">
-                    <div class="flex justify-between items-start">
-                        <div class="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-md text-xs font-black uppercase tracking-tighter shadow-sm">MESA/COMANDA</div>
-                        <div class="text-gray-400 text-[10px] font-bold">#${p.id}</div>
+            <div class="bg-white border-t-8 border-gray-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-all duration-300 animate-fade-in">
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-md text-[10px] font-black uppercase">Pedido Mesa</span>
+                        <div class="h-8 w-8 bg-yellow-400 rounded-full animate-pulse"></div>
                     </div>
-                    <div class="text-4xl font-black text-yellow-900 mt-2">${p.comandas.mesa_cliente}</div>
-                    <div class="mt-6 space-y-2">
-                        <div class="flex items-center gap-2">
-                            <span class="text-2xl font-black text-yellow-800">${p.quantidade}x</span>
-                            <span class="text-2xl font-black text-gray-800 tracking-tight">${p.produtos.nome}</span>
-                        </div>
-                    </div>
+                    <h2 class="text-5xl font-black text-gray-900 tracking-tighter mb-4">${mesa.nome}</h2>
+                    <ul class="space-y-3 border-t pt-4">
+                        ${mesa.itens.map(item => `
+                            <li class="flex items-center gap-3">
+                                <span class="text-2xl font-black text-red-600">${item.quantidade}x</span>
+                                <span class="text-lg font-bold text-gray-800 tracking-tight leading-none">${item.produtos.nome}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
                 </div>
-                <button onclick="marcarPronto(${p.id})" class="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black py-5 rounded-xl shadow-lg border-b-4 border-yellow-600 active:transform active:scale-95 transition-all text-xl">
-                    PRONTO 🔥
+                <button onclick="marcarMesaPronta('${cid}')" class="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest">
+                    CONCLUIR MESA 🔥
                 </button>
             </div>
         `;
@@ -660,8 +768,8 @@ async function renderCozinha(container) {
 
     container.innerHTML = `
         <div class="flex justify-between items-center mb-10">
-            <h1 class="text-4xl font-black text-gray-800 tracking-tighter">Tickets Cozinha 🍽️🔥</h1>
-            <button onclick="setMode('cozinha')" class="bg-gray-800 text-white p-4 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all font-black text-xs uppercase tracking-widest">↻ RECARR. BOLETAS</button>
+            <h1 class="text-4xl font-black text-gray-800 tracking-tighter">Chef de Cozinha 👨‍🍳</h1>
+            <button onclick="setMode('cozinha')" class="bg-gray-800 text-white p-4 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all font-black text-xs uppercase tracking-widest">↻ ATUALIZAR FILA</button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             ${cards}
@@ -669,10 +777,17 @@ async function renderCozinha(container) {
     `;
 }
 
-window.marcarPronto = async (itemId) => {
-    await db.from('itens_pedido').update({ status_producao: 'Pronto' }).eq('id', itemId);
-    showAlert("Item Notificado ao Garçom!");
-    setMode('cozinha');
+window.marcarMesaPronta = async (cid) => {
+    // Marca todos os itens pendentes dessa comanda como Pronto
+    const { error } = await db.from('itens_pedido')
+        .update({ status_producao: 'Pronto' })
+        .eq('comanda_id', cid)
+        .eq('status_producao', 'Recebido');
+    
+    if (!error) {
+        showAlert("Mesa concluída! Notificando Garçom. 🔔");
+        setMode('cozinha');
+    }
 }
 
 // ==========================================
