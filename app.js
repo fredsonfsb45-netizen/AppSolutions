@@ -470,13 +470,13 @@ window.mostrarProdutosPorCategoria = (cat) => {
         const qtd = noCarrinho ? noCarrinho.quantidade : 0;
 
         return `
-            <div class="flex flex-col bg-white border-2 ${qtd > 0 ? 'border-green-500' : 'border-gray-100'} p-3 rounded-xl shadow-sm transition-all text-left">
+            <div id="prod-card-${p.id}" data-pid="${p.id}" class="flex flex-col bg-white border-2 ${qtd > 0 ? 'border-green-500' : 'border-gray-100'} p-3 rounded-xl shadow-sm transition-all text-left">
                 <span class="font-black text-gray-800 text-sm leading-tight mb-1 truncate">${p.nome}</span>
                 <span class="text-[10px] font-bold text-green-600 uppercase mb-2">R$ ${p.preco.toFixed(2)}</span>
                 
                 <div class="mt-auto flex items-center justify-between bg-gray-50 rounded-lg p-1">
                     <button onclick="alterarQtdCarrinho(${p.id}, -1)" class="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-500 font-bold">-</button>
-                    <span class="font-black text-gray-800 text-sm">${qtd}</span>
+                    <span class="contador-val font-black text-gray-800 text-sm">${qtd}</span>
                     <button onclick="alterarQtdCarrinho(${p.id}, 1)" class="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-green-600 font-bold">+</button>
                 </div>
             </div>
@@ -494,12 +494,23 @@ window.alterarQtdCarrinho = (pid, delta) => {
             window.carrinho.splice(index, 1);
         }
     } else if (delta > 0) {
-        window.carrinho.push({ ...p, quantidade: 1 });
+        window.carrinho.push({ ...p, quantidade: 1, observacao: '' });
     }
 
-    // Mantém a categoria aberta e atualiza o visual dos botões
-    const cat = document.getElementById('selected-cat-name').innerText;
-    mostrarProdutosPorCategoria(cat);
+    // ATUALIZAÇÃO LEVE: Apenas o contador visual do botão, sem re-renderizar o grid todo (evita pulo de tela)
+    const cardContador = document.querySelector(`[data-pid="${pid}"] .contador-val`);
+    if (cardContador) {
+        const itemObj = window.carrinho.find(it => it.id === pid);
+        cardContador.innerText = itemObj ? itemObj.quantidade : 0;
+        
+        // Atualiza a borda do card pai
+        const cardParent = document.getElementById(`prod-card-${pid}`);
+        if (cardParent) {
+            if (itemObj) cardParent.classList.add('border-green-500');
+            else cardParent.classList.remove('border-green-500');
+        }
+    }
+
     renderResumoCarrinho();
 }
 
@@ -515,11 +526,22 @@ function renderResumoCarrinho() {
 
     document.getElementById('btn-enviar-lote').classList.remove('hidden');
     resumo.innerHTML = window.carrinho.map((item, idx) => `
-        <div class="flex justify-between items-center py-2 border-b border-dashed border-gray-100 last:border-0">
-            <span class="text-xs font-bold text-gray-700">${item.quantidade}x ${item.nome}</span>
-            <button onclick="removerItemCarrinho(${idx})" class="text-red-300 hover:text-red-600 px-2 font-black">×</button>
+        <div class="bg-white border-2 border-gray-100 rounded-xl p-3 mb-2 shadow-sm animate-fade-in">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-black text-gray-800 uppercase tracking-tighter">${item.quantidade}x ${item.nome}</span>
+                <button onclick="removerItemCarrinho(${idx})" class="text-red-400 hover:text-red-700 font-black">×</button>
+            </div>
+            <input type="text" 
+                   onchange="atualizarObsCarrinho(${idx}, this.value)" 
+                   placeholder="Obs: Mal passado, sem gelo..." 
+                   value="${item.observacao || ''}"
+                   class="w-full text-[10px] p-2 bg-gray-50 border border-gray-100 rounded-lg outline-none focus:border-red-300 font-medium italic">
         </div>
     `).join('');
+}
+
+window.atualizarObsCarrinho = (index, val) => {
+    window.carrinho[index].observacao = val;
 }
 
 window.removerItemCarrinho = (index) => {
@@ -544,10 +566,11 @@ window.enviarCarrinho = async () => {
     try {
         // Envia item por item usando a RPC segura
         for (const item of window.carrinho) {
-            const { error } = await db.rpc('lancar_item_seguro', { 
+            const { error } = await db.rpc('lancar_item_seguro_v2', { 
                 p_comanda_id: cid, 
                 p_produto_id: item.id, 
-                p_quantidade: item.quantidade 
+                p_quantidade: item.quantidade,
+                p_obs: item.observacao || ''
             });
             if (error) throw error;
         }
@@ -752,9 +775,12 @@ async function renderCozinha(container) {
                     <h2 class="text-5xl font-black text-gray-900 tracking-tighter mb-4">${mesa.nome}</h2>
                     <ul class="space-y-3 border-t pt-4">
                         ${mesa.itens.map(item => `
-                            <li class="flex items-center gap-3">
-                                <span class="text-2xl font-black text-red-600">${item.quantidade}x</span>
-                                <span class="text-lg font-bold text-gray-800 tracking-tight leading-none">${item.produtos.nome}</span>
+                            <li class="flex flex-col gap-1">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-2xl font-black text-red-600">${item.quantidade}x</span>
+                                    <span class="text-lg font-bold text-gray-800 tracking-tight leading-none">${item.produtos.nome}</span>
+                                </div>
+                                ${item.observacao ? `<div class="text-red-500 text-[10px] font-black uppercase italic bg-red-50 px-2 py-0.5 rounded border border-red-100">Obs: ${item.observacao}</div>` : ''}
                             </li>
                         `).join('')}
                     </ul>
