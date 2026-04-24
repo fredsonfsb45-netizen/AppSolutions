@@ -178,11 +178,16 @@ async function showApp() {
         console.error("Erro ao carregar SaaS Config:", error);
     }
 
-    // Se não existir config (usuário novo), cria o trial de 7 dias
+    // Se não existir config (usuário novo), cria o trial de 7 dias extraindo o nome dos metadados
     if (!userConfig) {
+        const meta = currentUser.user_metadata || {};
+        const nomeReal = meta.estabelecimento || meta.nome_restaurante || meta.display_name || 'Meu Novo Restaurante';
+        
         const { data: newCfg } = await db.from('configuracoes').insert({ 
             user_id: currentUser.id,
-            nome_estabelecimento: 'Meu Novo Restaurante'
+            nome_estabelecimento: nomeReal,
+            plano_status: 'trial',
+            data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         }).select().single();
         userConfig = newCfg;
     }
