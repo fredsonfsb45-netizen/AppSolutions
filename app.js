@@ -101,36 +101,54 @@ window.handleSignup = async () => {
     btn.disabled = true;
     btn.innerHTML = "CRIANDO CONTA...";
 
-    const { data, error } = await db.auth.signUp({ 
-        email, 
-        password,
-        options: {
-            data: {
-                estabelecimento: est,
-                nome_completo: nome
+    try {
+        const { data, error } = await db.auth.signUp({ 
+            email, 
+            password,
+            options: {
+                data: {
+                    estabelecimento: est,
+                    nome_completo: nome
+                }
             }
-        }
-    });
+        });
 
-    if (error) {
-        showAlert("Erro no Cadastro: " + error.message, true);
-        btn.disabled = false;
-        btn.innerHTML = "CRIAR CONTA E ACESSAR AGORA";
-    } else {
-        // Grava a configuração inicial
-        if (data.user) {
-            await db.from('configuracoes').insert({
-                user_id: data.user.id,
-                nome_estabelecimento: est,
-                plano_status: 'trial',
-                data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-            });
-            
-            showAlert("✅ CONTA CRIADA! Digite seu e-mail e senha abaixo para entrar.");
-            toggleAuthMode(false); // Volta para a tela de login
+        if (error) {
+            showAlert("Erro: " + error.message, true);
             btn.disabled = false;
-            btn.innerHTML = "CONTA CRIADA COM SUCESSO!";
+            btn.innerHTML = "CRIAR CONTA E ACESSAR AGORA";
+            return;
         }
+
+        if (data.user) {
+            // Tenta criar a configuração, mas não deixa travar o processo se der erro aqui
+            try {
+                await db.from('configuracoes').insert({
+                    user_id: data.user.id,
+                    nome_estabelecimento: est,
+                    plano_status: 'trial',
+                    data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                });
+            } catch (cfgErr) {
+                console.warn("Erro ao salvar config inicial, mas user criado:", cfgErr);
+            }
+            
+            showAlert("✅ CONTA CRIADA! Digite seu e-mail e senha para entrar.");
+            setTimeout(() => {
+                toggleAuthMode(false); // Volta para o login
+                btn.disabled = false;
+                btn.innerHTML = "CLIQUE PARA ENTRAR";
+            }, 1000);
+        } else {
+            showAlert("Verifique seu e-mail para confirmar a conta!", false);
+            btn.disabled = false;
+            btn.innerHTML = "CRIAR CONTA";
+        }
+    } catch (err) {
+        console.error("Erro Fatal no Signup:", err);
+        showAlert("Erro de Conexão: Tente novamente.", true);
+        btn.disabled = false;
+        btn.innerHTML = "TENTAR NOVAMENTE";
     }
 }
 
