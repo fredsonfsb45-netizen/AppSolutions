@@ -875,6 +875,8 @@ async function renderDono(container) {
                 <button onclick="changeDonoAba('estoque')" class="aba-btn bg-white border-2 border-gray-100 flex-1 lg:flex-none font-black py-4 px-6 rounded-xl hover:bg-gray-50 transition-all uppercase text-xs tracking-widest">📦 Estoque</button>
                 <button onclick="changeDonoAba('branding')" class="aba-btn bg-gray-900 text-white flex-1 lg:flex-none font-black py-4 px-6 rounded-xl shadow-lg transition-all uppercase text-xs tracking-widest">🎨 Personalizar</button>
                 <button onclick="exportarExcel()" class="flex-1 lg:flex-none bg-blue-50 text-blue-700 font-black py-4 px-6 rounded-xl hover:bg-blue-100 transition-all shadow-sm border border-blue-200 uppercase text-xs tracking-widest">📉 Relatório</button>
+                <button onclick="document.getElementById('import-excel').click()" class="flex-1 lg:flex-none bg-green-50 text-green-700 font-black py-4 px-6 rounded-xl hover:bg-green-100 transition-all shadow-sm border border-green-200 uppercase text-xs tracking-widest">📥 Importar</button>
+                <input type="file" id="import-excel" class="hidden" accept=".xlsx, .xls" onchange="importarExcel(event)">
             </div>
         </div>
 
@@ -1458,4 +1460,50 @@ function aplicarTemaMaster() {
         cor_texto: '#1e293b',
         nome_estabelecimento: 'AppSolutions'
     });
+}
+
+window.importarExcel = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    showAlert("Processando importação...", false);
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Vamos focar na aba de produtos para este exemplo de importação
+            const firstSheet = workbook.SheetNames[0];
+            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+
+            if (jsonData.length === 0) throw new Error("Planilha vazia!");
+
+            showAlert(`Importando ${jsonData.length} registros...`, false);
+
+            // Mapeia os dados para o formato do Supabase (exemplo para produtos)
+            const rows = jsonData.map(row => ({
+                user_id: currentUser.id,
+                nome: row.nome || row.Nome || "Produto Sem Nome",
+                categoria: row.categoria || row.Categoria || "Geral",
+                preco: parseFloat(row.preco || row.Preco || 0),
+                estoque: parseInt(row.estoque || row.Estoque || 0),
+                estoque_minimo: parseInt(row.estoque_minimo || row.EstoqueMinimo || 5)
+            }));
+
+            const { error } = await db.from('produtos').upsert(rows, { onConflict: 'nome,user_id' });
+
+            if (error) throw error;
+
+            showAlert("Importação concluída com sucesso! 🚀");
+            acessarDono(); // Recarrega o painel
+        } catch (err) {
+            console.error(err);
+            showAlert("Erro na importação: " + err.message, true);
+        }
+    };
+
+    reader.readAsArrayBuffer(file);
+    event.target.value = ''; // Reseta o input
 }
