@@ -179,9 +179,13 @@ async function showApp() {
         aplicarTema(userConfig);
     }
 
+    console.log("Diagnóstico de Login - UID:", currentUser.id);
+    console.log("Config encontrada no banco:", userConfig);
+
     // Se não existir config (usuário foi excluído pelo Master), permite que ele comece do zero
     if (!userConfig) {
-        const querVoltar = confirm("Sua conta anterior não foi encontrada. Deseja criar uma nova configuração do zero e iniciar um novo teste de 7 dias?");
+        console.warn("ALERTA: Usuário logado mas sem configuração no banco. Iniciando fluxo de Reset.");
+        const querVoltar = confirm("Sua conta anterior não foi encontrada ou foi removida pelo administrador.\n\nDeseja criar uma nova configuração do zero e iniciar um novo teste de 7 dias?");
         
         if (querVoltar) {
             const meta = currentUser.user_metadata || {};
@@ -1729,7 +1733,7 @@ window.excluirParaSempre = async (uid, nome) => {
     showAlert("Excluindo conta e limpando dados...", false);
 
     // LIMPEZA COMPLETA (Cascata Manual)
-    await Promise.all([
+    const resultados = await Promise.all([
         db.from('produtos').delete().eq('user_id', uid),
         db.from('comandas').delete().eq('user_id', uid),
         db.from('itens_pedido').delete().eq('user_id', uid),
@@ -1737,6 +1741,12 @@ window.excluirParaSempre = async (uid, nome) => {
         db.from('configuracoes').delete().eq('user_id', uid)
     ]);
 
-    showAlert("Estabelecimento e todos os registros foram apagados definitivamente!");
-    renderMaster();
+    const erro = resultados.find(r => r.error);
+    if (erro) {
+        showAlert("Erro parcial na exclusão: " + erro.error.message, true);
+        console.error("Erro na cascata:", erro.error);
+    } else {
+        showAlert("Estabelecimento e todos os registros foram apagados definitivamente!");
+        renderMaster();
+    }
 }
