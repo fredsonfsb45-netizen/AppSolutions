@@ -181,27 +181,29 @@ async function showApp() {
 
     // Se não existir config (usuário foi excluído pelo Master), permite que ele comece do zero
     if (!userConfig) {
-        const querVoltar = confirm("Sua conta anterior não foi encontrada ou foi removida pelo administrador.\n\nDeseja criar uma nova configuração do zero e iniciar um novo teste de 7 dias?");
+        alert("Sua conta anterior foi removida.\n\nVocê será redirecionado para criar uma NOVA CONTA do zero agora.");
         
-        if (querVoltar) {
-            const meta = currentUser.user_metadata || {};
-            const nomeRestaurante = meta.estabelecimento || meta.nome_restaurante || 'Meu Novo Restaurante';
-            
-            const { data: newCfg, error: errNew } = await db.from('configuracoes').insert({ 
-                user_id: currentUser.id,
-                nome_estabelecimento: nomeRestaurante,
-                plano_status: 'trial',
-                data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                valor_mensalidade: 29.90,
-                setup_concluido: false // Força ele a passar pelo onboarding de novo
-            }).select().single();
+        const meta = currentUser.user_metadata || {};
+        const nomeRestaurante = meta.estabelecimento || meta.nome_restaurante || 'Meu Novo Restaurante';
+        
+        const { data: newCfg, error: errNew } = await db.from('configuracoes').insert({ 
+            user_id: currentUser.id,
+            nome_estabelecimento: nomeRestaurante,
+            plano_status: 'trial',
+            data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            valor_mensalidade: 29.90,
+            setup_concluido: false // MUITO IMPORTANTE: Isso obriga a tela de branding aparecer
+        }).select().single();
 
-            if (errNew) return showAlert("Erro ao reiniciar conta", true);
-            userConfig = newCfg;
-            showAlert("Conta Reiniciada! Bem-vindo de volta.");
-        } else {
-            return handleLogout();
-        }
+        if (errNew) return showAlert("Erro ao reiniciar conta", true);
+        userConfig = newCfg;
+        
+        // Esconde o app e força a tela de Onboarding/Branding
+        document.getElementById('app-wrapper').classList.add('hidden');
+        document.getElementById('setup-onboarding').classList.remove('hidden'); // Certifique-se de que este ID existe
+        showAlert("Recriando sua conta... Aguarde.");
+        setTimeout(() => window.location.reload(), 1000);
+        return;
     }
 
     document.getElementById('auth-container').classList.add('hidden');
