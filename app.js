@@ -171,26 +171,37 @@ async function showApp() {
     userConfig = cfg;
 
     if (userConfig) {
+        if (userConfig.plano_status === 'cancelado') {
+            showAlert("🚫 ACESSO REVOGADO: Esta conta foi encerrada pelo administrador.", true);
+            alert("🚫 ACESSO REVOGADO: Esta conta foi excluída definitivamente.");
+            return handleLogout();
+        }
         aplicarTema(userConfig);
     }
 
-    if (error && error.code !== 'PGRST116') {
-        console.error("Erro ao carregar SaaS Config:", error);
-    }
-
-    // Se não existir config (usuário novo), cria o trial de 7 dias extraindo o nome dos metadados
+    // Se não existir config (usuário foi excluído pelo Master), permite que ele comece do zero
     if (!userConfig) {
-        const meta = currentUser.user_metadata || {};
-        const nomeReal = meta.estabelecimento || meta.nome_restaurante || meta.display_name || 'Meu Novo Restaurante';
+        const querVoltar = confirm("Sua conta anterior não foi encontrada. Deseja criar uma nova configuração do zero e iniciar um novo teste de 7 dias?");
         
-            const { data: newCfg } = await db.from('configuracoes').insert({ 
+        if (querVoltar) {
+            const meta = currentUser.user_metadata || {};
+            const nomeRestaurante = meta.estabelecimento || meta.nome_restaurante || 'Meu Novo Restaurante';
+            
+            const { data: newCfg, error: errNew } = await db.from('configuracoes').insert({ 
                 user_id: currentUser.id,
-                nome_estabelecimento: nomeReal,
+                nome_estabelecimento: nomeRestaurante,
                 plano_status: 'trial',
                 data_vencimento: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                valor_mensalidade: 29.90
+                valor_mensalidade: 29.90,
+                setup_concluido: false // Força ele a passar pelo onboarding de novo
             }).select().single();
-        userConfig = newCfg;
+
+            if (errNew) return showAlert("Erro ao reiniciar conta", true);
+            userConfig = newCfg;
+            showAlert("Conta Reiniciada! Bem-vindo de volta.");
+        } else {
+            return handleLogout();
+        }
     }
 
     document.getElementById('auth-container').classList.add('hidden');
@@ -1435,13 +1446,14 @@ window.renderMaster = async () => {
                                     ${isAdmin ? 'VITALÍCIO' : (isAtivo ? 'ATIVO' : 'BLOQUEADO')}
                                 </span>
                             </td>
-                            <td class="p-6 text-center flex items-center justify-center gap-2">
-                                ${isAdmin ? '<span class="text-[10px] font-black text-gray-300 uppercase italic">Acesso Master</span>' : `
-                                <button onclick="confirmarPagamentoSaaS('${c.user_id}', ${c.valor_mensalidade})" class="bg-green-600 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-green-700 shadow-sm transition-all uppercase">💰 PAGO</button>
-                                <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-tighter">Renovar</button>
-                                <button onclick="excluirParaSempre('${c.user_id}', '${c.nome_estabelecimento}')" class="bg-red-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-red-700 transition-all uppercase tracking-tighter">Excluir</button>
-                                `}
-                            </td>
+                             <td class="p-6 text-center flex items-center justify-center gap-2">
+                                 ${isAdmin ? '<span class="text-[10px] font-black text-gray-300 uppercase italic">Acesso Master</span>' : `
+                                 <button onclick="confirmarPagamentoSaaS('${c.user_id}', ${c.valor_mensalidade})" class="bg-green-600 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-green-700 shadow-sm transition-all uppercase">💰 PAGO</button>
+                                 <button onclick="estenderAssinatura('${c.user_id}')" class="bg-gray-900 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-blue-600 transition-all uppercase tracking-tighter">Renovar</button>
+                                 <button onclick="mudarStatusBloqueio('${c.user_id}', '${c.plano_status}')" class="${c.plano_status === 'bloqueado' ? 'bg-orange-500' : 'bg-gray-400'} text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-orange-600 transition-all uppercase tracking-tighter">${c.plano_status === 'bloqueado' ? 'Desbloquear' : 'Bloquear'}</button>
+                                 <button onclick="excluirParaSempre('${c.user_id}', '${c.nome_estabelecimento}')" class="bg-red-500 text-white text-[10px] font-black px-3 py-2 rounded-lg hover:bg-red-700 transition-all uppercase tracking-tighter">Excluir</button>
+                                 `}
+                             </td>
                         </tr>
                         `;
                     }).join('')}
@@ -1693,4 +1705,38 @@ window.importarExcel = async (event) => {
 
     reader.readAsArrayBuffer(file);
     event.target.value = ''; // Reseta o input
+}
+
+window.mudarStatusBloqueio = async (uid, statusAtual) => {
+    const novoStatus = statusAtual === 'bloqueado' ? 'ativo' : 'bloqueado';
+    const acao = novoStatus === 'bloqueado' ? 'BLOQUEAR' : 'DESBLOQUEAR';
+    
+    if (!confirm(`Deseja realmente ${acao} este cliente?`)) return;
+
+    const { error } = await db.from('configuracoes').update({ plano_status: novoStatus }).eq('user_id', uid);
+    if (!error) {
+        showAlert(`Cliente ${novoStatus === 'bloqueado' ? 'Bloqueado' : 'Ativado'} com sucesso!`);
+        renderMaster();
+    } else {
+        showAlert("Erro ao mudar status: " + error.message, true);
+    }
+}
+
+window.excluirParaSempre = async (uid, nome) => {
+    if (!confirm(`🚨 CUIDADO: Você deseja EXCLUIR DEFINITIVAMENTE o estabelecimento "${nome}"?\n\nEsta ação removerá todos os dados e o cliente perderá o acesso imediatamente.`)) return;
+    if (!confirm("CONFIRMAÇÃO FINAL: Deseja apagar tudo deste cliente?")) return;
+
+    showAlert("Excluindo conta e limpando dados...", false);
+
+    // LIMPEZA COMPLETA (Cascata Manual)
+    await Promise.all([
+        db.from('produtos').delete().eq('user_id', uid),
+        db.from('comandas').delete().eq('user_id', uid),
+        db.from('itens_pedido').delete().eq('user_id', uid),
+        db.from('despesas').delete().eq('user_id', uid),
+        db.from('configuracoes').delete().eq('user_id', uid)
+    ]);
+
+    showAlert("Estabelecimento e todos os registros foram apagados definitivamente!");
+    renderMaster();
 }
