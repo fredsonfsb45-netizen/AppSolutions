@@ -415,10 +415,65 @@ window.salvarNovaSenhaAdm = async () => {
     }
 }
 
+function renderPinGarcom(container) {
+    container.innerHTML = `
+        <div class="max-w-md mx-auto bg-white p-10 rounded-3xl shadow-2xl border-t-8 border-red-600 mt-10 animate-fade-in">
+            <div class="flex justify-center mb-6">
+                <div class="bg-red-50 p-6 rounded-full text-5xl">📱</div>
+            </div>
+            <h2 class="text-3xl font-black mb-2 text-center text-gray-800 italic uppercase italic tracking-tighter">Acesso de Turno</h2>
+            <p class="text-gray-400 text-center mb-8 font-medium">Digite o código operacional de 4 dígitos fornecido pelo proprietário.</p>
+            
+            <input type="password" id="pin_input" maxlength="4" placeholder="••••" readonly
+                   class="w-full p-6 bg-gray-50 border-2 border-gray-100 rounded-3xl mb-8 text-center text-5xl font-black tracking-[0.5em] focus:outline-none focus:ring-8 focus:ring-red-600/10 focus:border-red-600 transition-all font-mono">
+            
+            <div class="grid grid-cols-3 gap-4 mb-8">
+                ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, 'OK'].map(n => `
+                    <button onclick="tecladoPin('${n}')" class="h-20 flex items-center justify-center bg-gray-50 rounded-2xl text-2xl font-black text-gray-800 hover:bg-red-600 hover:text-white active:scale-95 transition-all shadow-sm">
+                        ${n}
+                    </button>
+                `).join('')}
+            </div>
+
+            <button onclick="setMode('garcom')" class="w-full text-gray-400 font-bold py-4 rounded-xl hover:text-red-600 transition-all text-xs uppercase tracking-widest">Tentar Novamente</button>
+        </div>
+    `;
+}
+
+window.tecladoPin = (val) => {
+    const input = document.getElementById('pin_input');
+    if (val === 'C') {
+        input.value = '';
+    } else if (val === 'OK') {
+        verificarPinGarcom();
+    } else {
+        if (input.value.length < 4) input.value += val;
+        if (input.value.length === 4) {
+             setTimeout(verificarPinGarcom, 300);
+        }
+    }
+}
+
+window.verificarPinGarcom = () => {
+    const pin = document.getElementById('pin_input').value;
+    if (pin === userConfig.pin_garcom) {
+        sessionStorage.setItem('pin_autorizado', pin);
+        showAlert("Acesso Liberado! Bom trabalho.");
+        setMode('garcom');
+    } else {
+        showAlert("PIN incorreto! Tente novamente.", true);
+        document.getElementById('pin_input').value = '';
+    }
+}
+
 // ==========================================
 // VISÃO DO GARÇOM
 // ==========================================
 async function renderGarcom(container) {
+    // Trava de PIN do Garçom: Se não tiver o PIN correto na sessão, bloqueia
+    if (sessionStorage.getItem('pin_autorizado') !== userConfig.pin_garcom) {
+        return renderPinGarcom(container);
+    }
     // Busca produtos
     const { data: produtos, error: errProd } = await db.from('produtos').select('*').order('nome');
     if (errProd) showAlert("Erro ao ler produtos", true);
@@ -1060,6 +1115,10 @@ async function renderDono(container, initialAba = 'vendas') {
                             <input type="text" id="b_nome" value="${userConfig.nome_estabelecimento || ''}" class="w-full p-5 bg-gray-50 border-2 border-gray-100 rounded-2xl font-black text-xl outline-none focus:border-indigo-500 transition-all shadow-inner">
                         </div>
                         <div>
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1 italic text-indigo-500">PIN de Acesso dos Garçons (4 dígitos)</label>
+                            <input type="text" id="b_pin" maxlength="4" placeholder="Ex: 1234" value="${userConfig.pin_garcom || '0000'}" class="w-full p-5 bg-indigo-50 border-2 border-indigo-100 rounded-2xl font-black text-3xl tracking-[1em] text-center outline-none focus:border-indigo-500 transition-all shadow-inner">
+                        </div>
+                        <div>
                             <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1 italic">Cor do Cabeçalho (Header)</label>
                             <div class="flex gap-4 items-center bg-gray-50 p-4 rounded-2xl border-2 border-gray-100">
                                 <input type="color" id="b_cor_header" value="${userConfig.cor_header || '#dc2626'}" class="w-16 h-12 rounded-xl cursor-pointer border-none bg-transparent">
@@ -1280,8 +1339,8 @@ window.renderMaster = async () => {
     const content = document.getElementById('main-content');
     content.innerHTML = '<div class="text-center py-20 font-black animate-pulse text-red-600">PROCESSANDO RECEITA SAAS...</div>';
 
-    // Agora buscamos apenas os dados dos administradores/clientes
-    const { data: clientes, error } = await db.from('configuracoes').select('*').order('data_vencimento', { ascending: true });
+    // Agora buscamos da VIEW que inclui os emails
+    const { data: clientes, error } = await db.from('lista_clientes_master').select('*').order('data_vencimento', { ascending: true });
 
     if (error) return showAlert("Erro ao carregar Central Master", true);
 
@@ -1358,7 +1417,7 @@ window.renderMaster = async () => {
                         <tr class="hover:bg-gray-50 transition-colors">
                             <td class="p-6">
                                 <div class="font-black text-gray-800">${nomeExibicao}</div>
-                                <div class="text-[10px] text-gray-400 font-mono italic">${isAdmin ? 'PLATAFORMA MASTER' : c.user_id}</div>
+                                <div class="text-[10px] text-gray-400 font-mono italic">${isAdmin ? 'PLATAFORMA MASTER' : c.email_cliente}</div>
                             </td>
                             <td class="p-6">
                                 ${isAdmin ? '<span class="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg italic tracking-widest">CONTA LIBERADA</span>' : `
@@ -1518,6 +1577,7 @@ window.changeDonoAba = (aba) => {
 
 window.salvarBranding = async () => {
     const nome = document.getElementById('b_nome').value;
+    const pin = document.getElementById('b_pin').value;
     const header = document.getElementById('b_cor_header').value;
     const fundo = document.getElementById('b_cor_fundo').value;
     const texto = document.getElementById('b_cor_texto').value;
@@ -1526,6 +1586,7 @@ window.salvarBranding = async () => {
 
     const { error } = await db.from('configuracoes').update({
         nome_estabelecimento: nome,
+        pin_garcom: pin,
         cor_header: header,
         cor_fundo: fundo,
         cor_texto: texto,
@@ -1535,6 +1596,7 @@ window.salvarBranding = async () => {
     if (!error) {
         // Atualiza localmente e reaplica
         userConfig.nome_estabelecimento = nome;
+        userConfig.pin_garcom = pin;
         userConfig.cor_header = header;
         userConfig.cor_fundo = fundo;
         userConfig.cor_texto = texto;
