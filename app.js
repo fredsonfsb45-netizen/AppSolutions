@@ -179,12 +179,8 @@ async function showApp() {
         aplicarTema(userConfig);
     }
 
-    console.log("Diagnóstico de Login - UID:", currentUser.id);
-    console.log("Config encontrada no banco:", userConfig);
-
     // Se não existir config (usuário foi excluído pelo Master), permite que ele comece do zero
     if (!userConfig) {
-        console.warn("ALERTA: Usuário logado mas sem configuração no banco. Iniciando fluxo de Reset.");
         const querVoltar = confirm("Sua conta anterior não foi encontrada ou foi removida pelo administrador.\n\nDeseja criar uma nova configuração do zero e iniciar um novo teste de 7 dias?");
         
         if (querVoltar) {
