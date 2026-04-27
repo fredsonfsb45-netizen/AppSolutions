@@ -1693,7 +1693,7 @@ window.importarExcel = async (event) => {
                 return p;
             });
 
-            const { error } = await db.from('produtos').upsert(rows, { onConflict: 'nome,user_id' });
+            const { error } = await db.from('produtos').upsert(rows, { onConflict: 'user_id,nome' });
 
             if (error) throw error;
 
